@@ -1,0 +1,12 @@
+{
+  "name": "com.mikanxr.unity",
+  "version": "0.1.0",
+  "displayName": "MikanXR Unity Client",
+  "description": "Mirrors a MikanXR editor's stages, anchors, stencils and cameras into a Unity scene and publishes rendered color, depth and shadow buffers back to it through Spout.",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "jp.keijiro.klak.spout": "2.0.3"
+  },
+  "author": { "name": "MikanXR" }
+}

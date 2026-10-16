@@ -35,8 +35,8 @@ TagManager:
   - 
   - 
   - 
-  - 
-  - 
+  - MikanStencil
+  - MikanVisualization
   m_SortingLayers:
   - name: Default
     uniqueID: 0

@@ -1,0 +1,16 @@
+{
+    "name": "MikanXR.Unity",
+    "rootNamespace": "MikanXR.Unity",
+    "references": [
+        "Klak.Spout.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
