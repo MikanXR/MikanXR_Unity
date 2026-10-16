@@ -1,16 +1,20 @@
 ManifestFileVersion: 0
-CRC: 216916203
+CRC: 944278862
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 828640c00ae1dca44a92b1d7539c48f2
+    Hash: 5a9a7eaabc5fbab59ffffc62615a0de2
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 7e9ee104d6bb707fb2602b751e6f78b1
+    Hash: 87b0bba9d18ffc75f60c50b410bd4a4e
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 5a9a7eaabc5fbab59ffffc62615a0de2
 HashAppended: 0
 ClassTypes:
 - Class: 48
   Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/Shaders/sh_custom_unlit.shader
 Dependencies: []

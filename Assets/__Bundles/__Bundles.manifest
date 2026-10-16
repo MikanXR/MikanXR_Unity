@@ -1,14 +1,17 @@
 ManifestFileVersion: 0
-CRC: 3661311948
+CRC: 1461449734
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
-      Name: saber
+      Name: mikancontent
       Dependencies: {}
     Info_1:
       Name: smolcalianim
       Dependencies:
         Dependency_0: saber
     Info_2:
-      Name: mikancontent
+      Name: saber
+      Dependencies: {}
+    Info_3:
+      Name: depthencoder
       Dependencies: {}

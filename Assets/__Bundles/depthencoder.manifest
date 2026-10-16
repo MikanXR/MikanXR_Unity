@@ -1,0 +1,20 @@
+ManifestFileVersion: 0
+CRC: 1833486021
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: ef3f6a0b72378ae3b5d62d8983e6270c
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 87b0bba9d18ffc75f60c50b410bd4a4e
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: ef3f6a0b72378ae3b5d62d8983e6270c
+HashAppended: 0
+ClassTypes:
+- Class: 48
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/MikanPlugin/Shaders/sh_rgba_pack_depth.shader
+Dependencies: []

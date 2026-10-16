@@ -16,7 +16,7 @@ Shader "Custom/RGBAPackDepth"
 			#include "UnityCG.cginc"
 			
 			uniform sampler2D _MainTex;
-			uniform sampler2D _LastCameraDepthTexture;
+			uniform sampler2D _CameraDepthTexture;
 			uniform half4 _MainTex_TexelSize;
 			uniform float _SceneScale;
 
@@ -44,7 +44,7 @@ Shader "Custom/RGBAPackDepth"
 			
 			fixed4 frag(output o) : COLOR
 			{
-				float depth = tex2D(_LastCameraDepthTexture, o.uv).r / _SceneScale;
+				float depth = tex2D(_CameraDepthTexture, o.uv).r / _SceneScale;
 				float depthNorm = min(Linear01Depth(depth), 0.999999);
 
 				return EncodeFloatRGBA(depthNorm);

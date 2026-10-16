@@ -1,18 +1,22 @@
 ManifestFileVersion: 0
-CRC: 1498681877
+CRC: 4094961821
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 1b4ae5e388c6c6b2f8571a9dda09ae13
+    Hash: 0ed4d2481fad889b786e9abffa69b5c5
   TypeTreeHash:
     serializedVersion: 2
-    Hash: aa6d336d6c4bc3ea8ed7291f7ff7ef65
+    Hash: 0100730372bb8d3cbe53c6a582076653
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 0ed4d2481fad889b786e9abffa69b5c5
 HashAppended: 0
 ClassTypes:
 - Class: 114
   Script: {fileID: 11500000, guid: e8bff34c9e267114b8bfcd227112b792, type: 3}
 - Class: 115
   Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/BeatSaberMikanContent.asset
 Dependencies: []

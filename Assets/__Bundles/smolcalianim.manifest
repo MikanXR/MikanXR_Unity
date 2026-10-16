@@ -1,12 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1887205609
+CRC: 656886604
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: c985758bcef4bee055e98007910e7b00
+    Hash: dcfbe71e6e3c80fea8d034bbe7cae72a
   TypeTreeHash:
     serializedVersion: 2
-    Hash: d8c28aac84979c1bf73301775f8a46af
+    Hash: e9ffdcf298eb7894dd6a2807972024e6
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: dcfbe71e6e3c80fea8d034bbe7cae72a
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -29,6 +32,7 @@ ClassTypes:
   Script: {instanceID: 0}
 - Class: 137
   Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/SmolCalli/source/smolcalli_seafoamboy_anim.fbx
 Dependencies:
