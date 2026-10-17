@@ -6,8 +6,10 @@ namespace MikanXR.Unity
 {
 	// The editor's captured lighting probe: an order-2 spherical harmonic radiance environment
 	// plus a key light direction, both in the capturing camera's stage space. It becomes the
-	// scene's ambient probe and a directional key light. One probe drives the ambient at a time,
-	// the one with the lowest component id, since the ambient is global.
+	// scene's ambient probe and a directional key light. One probe drives both at a time, the one
+	// with the lowest component id: the ambient is global, and a key light per probe would spend
+	// the forward renderer's per-pixel light slots on directional lights and leave none for the
+	// spot lights.
 	public class MikanLightEnvironmentObject : MikanTransformObject
 	{
 		// Below this the recovered direction is noise and the key light stays off
@@ -81,22 +83,24 @@ namespace MikanXR.Unity
 			Quaternion stageRotation = stage != null ? stage.transform.rotation : transform.rotation;
 
 			bool apply = Client.ApplyLightEnvironment;
-			UpdateKeyLight(apply, stageRotation);
-
 			if (!apply)
 			{
+				UpdateKeyLight(false, stageRotation);
 				ReleaseAmbient();
 				return;
 			}
 
-			if (s_ambientDriver == null || s_ambientDriver == this || s_ambientDriver.ComponentId > ComponentId)
+			bool drives = s_ambientDriver == null || s_ambientDriver == this || s_ambientDriver.ComponentId > ComponentId;
+			if (drives && s_ambientDriver != this)
 			{
-				if (s_ambientDriver != this)
-				{
-					s_ambientDriver = this;
-					_probeDirty = true;
-				}
+				s_ambientDriver = this;
+				_probeDirty = true;
+			}
 
+			UpdateKeyLight(drives, stageRotation);
+
+			if (drives)
+			{
 				bool changed = _probeDirty ||
 					Quaternion.Angle(stageRotation, _appliedStageRotation) > 0.01f ||
 					!Mathf.Approximately(Client.LightIntensityScale, _appliedIntensityScale);
@@ -281,8 +285,10 @@ namespace MikanXR.Unity
 	{
 		// Unity's built-in light intensity has no unit. The fixture's output is turned into its
 		// on-axis candela, lumens over the cone's solid angle, so a narrow fixture reads as bright
-		// as it is, and this many candela map to an intensity of one at a scale of one.
-		private const float k_candelaPerUnitIntensity = 50f;
+		// as it is, and this many candela map to an intensity of one at a scale of one. Built-in
+		// lights have no exposure to sit under, so this is tuned for a small LED fixture to show
+		// against a scene's own key light, and the client's intensity scale takes it from there.
+		private const float k_candelaPerUnitIntensity = 5f;
 
 		private const int k_rimPointCount = 16;
 		private const int k_spokeCount = 4;
@@ -315,6 +321,10 @@ namespace MikanXR.Unity
 			_light = gameObject.AddComponent<Light>();
 			_light.type = LightType.Spot;
 			_light.shadows = LightShadows.None;
+			// A fixture's cone only reads per pixel. Left to the renderer's choice the scene's
+			// directional lights take the few per-pixel slots and the fixtures fall back to vertex
+			// lighting, where a cone on a character is a faint smear.
+			_light.renderMode = LightRenderMode.ForcePixel;
 			_light.enabled = false;
 
 			// The cone outline is built in meters under this object, so the root's scale sizes it
