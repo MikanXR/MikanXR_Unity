@@ -18,8 +18,12 @@ namespace MikanXR.Unity
 		private static readonly Material[] s_previewMaterials = new Material[2];
 		private static readonly Material[] s_passMaterials = new Material[4];
 
+		private static readonly int s_mainTexId = Shader.PropertyToID("_MainTex");
+		private static readonly int s_colorId = Shader.PropertyToID("_Color");
+
 		private MeshFilter _meshFilter;
 		private MeshRenderer _meshRenderer;
+		private MaterialPropertyBlock _previewProperties;
 		private bool _inPass;
 
 		public MikanStencilComponentValues StencilValues => TransformValues as MikanStencilComponentValues;
@@ -162,6 +166,29 @@ namespace MikanXR.Unity
 			}
 
 			SetMesh(BuildMesh());
+		}
+
+		// Shows the stencil's own texture on its host-view preview, or the plain tint when null. It
+		// rides on a property block because the preview material is shared by every stencil, and the
+		// pass materials ignore it.
+		protected void SetPreviewTexture(Texture2D texture)
+		{
+			if (_meshRenderer == null)
+			{
+				return;
+			}
+
+			if (texture == null)
+			{
+				_meshRenderer.SetPropertyBlock(null);
+				return;
+			}
+
+			_previewProperties ??= new MaterialPropertyBlock();
+			_previewProperties.SetTexture(s_mainTexId, texture);
+			// A textured preview shows the texture's own colors, nearly opaque
+			_previewProperties.SetColor(s_colorId, new Color(1f, 1f, 1f, 0.85f));
+			_meshRenderer.SetPropertyBlock(_previewProperties);
 		}
 
 		protected void SetMesh(Mesh mesh)
@@ -363,18 +390,28 @@ namespace MikanXR.Unity
 		}
 	}
 
-	// A model stencil, whose triangles come from the editor on request and again whenever its
-	// model path changes
+	// A model stencil, whose triangles and texture come from the editor as a GLB fetched over HTTP
+	// from its geometry_url, again whenever that url changes
 	public class MikanModelStencilObject : MikanStencilObject
 	{
-		private string _fetchedModelPath;
+		private string _fetchedGeometryUrl;
 		private bool _fetchInFlight;
+		private Texture2D _texture;
 
 		public MikanModelStencilComponentValues ModelValues => TransformValues as MikanModelStencilComponentValues;
+		public Texture2D Texture => _texture;
 
 		protected override bool IsGeometryField(string fieldName)
 		{
-			return fieldName == "model_path";
+			// The editor republishes geometry_url once a model_path change has reloaded the model, and
+			// its etag query changes with the model or texture files
+			return fieldName == "geometry_url";
+		}
+
+		public override void Unbind()
+		{
+			SetTexture(null);
+			base.Unbind();
 		}
 
 		protected override Mesh BuildMesh()
@@ -391,10 +428,17 @@ namespace MikanXR.Unity
 				return;
 			}
 
-			string modelPath = ModelValues != null ? ModelValues.model_path : "";
-			_fetchInFlight = true;
+			string geometryUrl = ModelValues != null ? ModelValues.geometry_url : "";
+			string baseUrl = Client.HttpBaseUrl;
+			if (string.IsNullOrEmpty(geometryUrl) || string.IsNullOrEmpty(baseUrl))
+			{
+				_fetchedGeometryUrl = geometryUrl;
+				SetTexture(null);
+				return;
+			}
 
-			Client.SendRequest(new GetModelStencilRenderGeometry() { stencilId = ComponentId }, response =>
+			_fetchInFlight = true;
+			Client.FetchBytes(baseUrl + geometryUrl, glb =>
 			{
 				_fetchInFlight = false;
 
@@ -403,64 +447,89 @@ namespace MikanXR.Unity
 					return;
 				}
 
-				if (!(response is MikanStencilModelRenderGeometryResponse geometryResponse) ||
-					response.resultCode != MikanAPIResult.Success)
+				_fetchedGeometryUrl = geometryUrl;
+				if (glb != null)
 				{
-					Client.Log(MikanLogLevel.Warning,
-						$"MikanModelStencilObject: geometry for stencil {ComponentId} failed ({response.resultCode})");
-					return;
+					if (MikanGlbReader.TryRead(glb, out MikanGlbGeometry geometry, out string error))
+					{
+						SetMesh(BuildMeshFromGeometry(geometry));
+						SetTexture(LoadTexture(geometry));
+					}
+					else
+					{
+						Client.Log(MikanLogLevel.Warning,
+							$"MikanModelStencilObject: geometry for stencil {ComponentId} is not a usable GLB ({error})");
+					}
 				}
 
-				_fetchedModelPath = modelPath;
-				SetMesh(BuildMeshFromGeometry(geometryResponse.render_geometry));
-
-				// The path moved on while the request was out
-				if (ModelValues != null && ModelValues.model_path != _fetchedModelPath)
+				// The url moved on while the request was out
+				if (ModelValues != null && ModelValues.geometry_url != _fetchedGeometryUrl)
 				{
 					RequestGeometry();
 				}
 			});
 		}
 
-		private static Mesh BuildMeshFromGeometry(MikanStencilModelRenderGeometry geometry)
+		private void SetTexture(Texture2D texture)
+		{
+			if (_texture != null && _texture != texture)
+			{
+				Destroy(_texture);
+			}
+
+			_texture = texture;
+			SetPreviewTexture(texture);
+		}
+
+		// The preview shows the first textured mesh's image. Depth proxy and occlusion mesh captures
+		// are one mesh with one texture.
+		private static Texture2D LoadTexture(MikanGlbGeometry geometry)
+		{
+			foreach (MikanGlbMesh mesh in geometry.Meshes)
+			{
+				if (mesh.ImageIndex >= 0 && mesh.ImageIndex < geometry.Images.Count)
+				{
+					var texture = new Texture2D(2, 2);
+					if (texture.LoadImage(geometry.Images[mesh.ImageIndex]))
+					{
+						return texture;
+					}
+
+					Destroy(texture);
+					return null;
+				}
+			}
+
+			return null;
+		}
+
+		private static Mesh BuildMeshFromGeometry(MikanGlbGeometry geometry)
 		{
 			var vertices = new List<Vector3>();
 			var normals = new List<Vector3>();
 			var uvs = new List<Vector2>();
 			var indices = new List<int>();
-
-			if (geometry?.meshes != null)
-			{
-				foreach (MikanTriagulatedMesh mesh in geometry.meshes)
-				{
-					int baseIndex = vertices.Count;
-					bool hasNormals = mesh.normals != null && mesh.normals.Count == mesh.vertices.Count;
-					bool hasUvs = mesh.texels != null && mesh.texels.Count == mesh.vertices.Count;
-
-					for (int index = 0; index < mesh.vertices.Count; ++index)
-					{
-						vertices.Add(MikanMath.ToUnityPosition(mesh.vertices[index]));
-						normals.Add(hasNormals ? MikanMath.ToUnityDirection(mesh.normals[index]) : Vector3.zero);
-						uvs.Add(hasUvs ? new Vector2(mesh.texels[index].x, mesh.texels[index].y) : Vector2.zero);
-					}
-
-					if (mesh.indices != null)
-					{
-						foreach (int vertexIndex in mesh.indices)
-						{
-							indices.Add(baseIndex + vertexIndex);
-						}
-					}
-				}
-			}
-
 			bool allNormals = true;
-			foreach (Vector3 normal in normals)
+
+			foreach (MikanGlbMesh mesh in geometry.Meshes)
 			{
-				if (normal == Vector3.zero)
+				int baseIndex = vertices.Count;
+				bool hasNormals = mesh.Normals != null && mesh.Normals.Length == mesh.Positions.Length;
+				bool hasUvs = mesh.UVs != null && mesh.UVs.Length == mesh.Positions.Length;
+				allNormals &= hasNormals;
+
+				for (int index = 0; index < mesh.Positions.Length; ++index)
 				{
-					allNormals = false;
-					break;
+					vertices.Add(MikanMath.ToUnityPosition(mesh.Positions[index]));
+					normals.Add(hasNormals ? MikanMath.ToUnityDirection(mesh.Normals[index]) : Vector3.zero);
+
+					// glTF texcoords run V-down and Unity samples V-up
+					uvs.Add(hasUvs ? new Vector2(mesh.UVs[index].x, 1f - mesh.UVs[index].y) : Vector2.zero);
+				}
+
+				foreach (int vertexIndex in mesh.Indices)
+				{
+					indices.Add(baseIndex + vertexIndex);
 				}
 			}
 

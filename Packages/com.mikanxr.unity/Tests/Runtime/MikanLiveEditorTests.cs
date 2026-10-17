@@ -138,7 +138,8 @@ namespace MikanXR.Unity.Tests
 				MeshFilter meshFilter = stencil.GetComponent<MeshFilter>();
 				Assert.That(meshFilter != null && meshFilter.sharedMesh != null, $"stencil {stencil.ComponentId} has no mesh");
 				Assert.That(meshFilter.sharedMesh.vertexCount, Is.GreaterThan(0), $"stencil {stencil.ComponentId} mesh is empty");
-				Debug.Log($"[MikanXR test] model stencil {stencil.ComponentId}: {meshFilter.sharedMesh.vertexCount} vertices");
+				string texture = stencil.Texture != null ? $"{stencil.Texture.width}x{stencil.Texture.height} texture" : "no texture";
+				Debug.Log($"[MikanXR test] model stencil {stencil.ComponentId}: {meshFilter.sharedMesh.vertexCount} vertices, {texture}");
 			}
 
 			if (modelStencils == 0)

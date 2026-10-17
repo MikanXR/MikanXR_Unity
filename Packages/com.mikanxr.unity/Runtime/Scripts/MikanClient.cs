@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace MikanXR.Unity
 {
@@ -87,6 +89,8 @@ namespace MikanXR.Unity
 		public Transform WorldRoot => _worldRoot;
 		public float WorldScale => _settings.worldScale;
 		public bool IsConnected => _api != null && _api.GetIsConnected();
+		// The editor's HTTP server, which a model's geometry_url is joined to. Empty until connected.
+		public string HttpBaseUrl => _api != null ? _api.HttpBaseUrl : "";
 		// Connected and past the client handshake, which is when scene data starts flowing
 		public bool IsClientInitialized => _clientInitialized;
 		public bool ShowCameraFrustums => _settings.showCameraFrustums;
@@ -356,6 +360,30 @@ namespace MikanXR.Unity
 				onResponse = onResponse,
 				deadline = Time.unscaledTime + k_requestTimeoutSeconds
 			});
+		}
+
+		// Fetches a URL and delivers its body, or null on failure, on the main thread
+		public void FetchBytes(string url, Action<byte[]> onFetched)
+		{
+			StartCoroutine(FetchBytesRoutine(url, onFetched));
+		}
+
+		private IEnumerator FetchBytesRoutine(string url, Action<byte[]> onFetched)
+		{
+			using (UnityWebRequest request = UnityWebRequest.Get(url))
+			{
+				yield return request.SendWebRequest();
+
+				if (request.result != UnityWebRequest.Result.Success)
+				{
+					Log(MikanLogLevel.Warning, $"MikanClient: fetch of {url} failed ({request.error})");
+					onFetched(null);
+				}
+				else
+				{
+					onFetched(request.downloadHandler.data);
+				}
+			}
 		}
 
 		private void Update()

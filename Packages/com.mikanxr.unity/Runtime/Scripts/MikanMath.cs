@@ -13,6 +13,12 @@ namespace MikanXR.Unity
 			return new Vector3(v.x, v.y, -v.z);
 		}
 
+		// The same mirror for a position already held as a Unity vector in Mikan space
+		public static Vector3 ToUnityPosition(Vector3 v)
+		{
+			return new Vector3(v.x, v.y, -v.z);
+		}
+
 		public static Vector3 ToUnityDirection(MikanVector3f v)
 		{
 			return new Vector3(v.x, v.y, -v.z);
