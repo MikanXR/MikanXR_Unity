@@ -459,16 +459,20 @@ namespace MikanXR.Unity
 
 			ReleaseTextures();
 
-			_colorTexture = CreateTexture($"Mikan camera {ComponentId} color", _pixelSize, 24);
+			// The color buffer keeps the project's default encoding: in a linear color space project
+			// that is an sRGB render texture, in a gamma project the shaders write display values,
+			// and either way the published bytes are sRGB encoded, which is what the editor decodes.
+			// The depth packing and the shadow ratio are raw numbers, so their textures stay linear.
+			_colorTexture = CreateTexture($"Mikan camera {ComponentId} color", _pixelSize, 24, RenderTextureReadWrite.Default);
 			if (wantsDepth)
 			{
-				_depthTexture = CreateTexture($"Mikan camera {ComponentId} depth", _auxPixelSize, 0);
+				_depthTexture = CreateTexture($"Mikan camera {ComponentId} depth", _auxPixelSize, 0, RenderTextureReadWrite.Linear);
 			}
 			if (wantsShadow)
 			{
-				_shadowTexture = CreateTexture($"Mikan camera {ComponentId} shadow", _auxPixelSize, 0);
-				_shadowedTexture = CreateTexture($"Mikan camera {ComponentId} shadowed", _auxPixelSize, 24);
-				_unshadowedTexture = CreateTexture($"Mikan camera {ComponentId} unshadowed", _auxPixelSize, 24);
+				_shadowTexture = CreateTexture($"Mikan camera {ComponentId} shadow", _auxPixelSize, 0, RenderTextureReadWrite.Linear);
+				_shadowedTexture = CreateTexture($"Mikan camera {ComponentId} shadowed", _auxPixelSize, 24, RenderTextureReadWrite.Default);
+				_unshadowedTexture = CreateTexture($"Mikan camera {ComponentId} unshadowed", _auxPixelSize, 24, RenderTextureReadWrite.Default);
 			}
 
 			_camera.targetTexture = _colorTexture;
@@ -486,9 +490,9 @@ namespace MikanXR.Unity
 			Client.RenderTargetWriter.SetTextures(ComponentId, _colorTexture, _depthTexture, _shadowTexture);
 		}
 
-		private static RenderTexture CreateTexture(string textureName, Vector2Int size, int depthBits)
+		private static RenderTexture CreateTexture(string textureName, Vector2Int size, int depthBits, RenderTextureReadWrite readWrite)
 		{
-			var texture = new RenderTexture(size.x, size.y, depthBits, RenderTextureFormat.ARGB32)
+			var texture = new RenderTexture(size.x, size.y, depthBits, RenderTextureFormat.ARGB32, readWrite)
 			{
 				name = textureName,
 				antiAliasing = 1,
