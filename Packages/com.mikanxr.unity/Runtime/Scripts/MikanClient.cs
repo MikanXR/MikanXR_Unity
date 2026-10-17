@@ -31,12 +31,21 @@ namespace MikanXR.Unity
 		[SerializeField] private bool _showCameraFrustums = true;
 		[Tooltip("Draw the stencils in the host's own view as translucent previews. The Mikan cameras never see the preview.")]
 		[SerializeField] private bool _showStencils = true;
+		[Tooltip("Draw each spot light's cone in the host's own view. The Mikan cameras never see it.")]
+		[SerializeField] private bool _showLightCones = true;
 		[Tooltip("Render the stencils into the Mikan cameras as knockout holdouts.")]
 		[SerializeField] private bool _renderStencils = true;
 		[Tooltip("Render the shadow pass and publish the shadow buffer. Needs stencils to catch the shadows.")]
 		[SerializeField] private bool _renderShadows = true;
 		[Tooltip("Pack and publish the depth buffer. The stencil knockout covers occlusion without it, so it is off unless a compositor keys on depth.")]
 		[SerializeField] private bool _renderDepth = false;
+		[Tooltip("Drive the scene's ambient probe and a directional key light from the editor's captured light environment.")]
+		[SerializeField] private bool _applyLightEnvironment = true;
+		[Tooltip("Mirror the editor's DMX spot lights as Unity spot lights, lit from the live DMX channels.")]
+		[SerializeField] private bool _applySpotLights = true;
+		[Tooltip("Multiplies the intensity of every light the client creates.")]
+		[Min(0f)]
+		[SerializeField] private float _lightIntensityScale = 1f;
 		[Tooltip("How dark a fully shadowed point on a stencil gets in the shadow buffer: 1 is black, 0 is no shadow.")]
 		[Range(0f, 1f)]
 		[SerializeField] private float _shadowStrength = 0.7f;
@@ -57,6 +66,7 @@ namespace MikanXR.Unity
 		private MikanAPI _api;
 		private MikanSpoutRenderTargetWriter _renderTargetWriter;
 		private MikanDataStore _dataStore;
+		private readonly MikanDMXStore _dmxStore = new MikanDMXStore();
 		private MikanSceneMirror _sceneMirror;
 		private MikanFramePublisher _framePublisher;
 		private MikanSettings _settings = new MikanSettings();
@@ -68,6 +78,7 @@ namespace MikanXR.Unity
 
 		public MikanAPI API => _api;
 		public MikanDataStore DataStore => _dataStore;
+		public MikanDMXStore DMXStore => _dmxStore;
 		public MikanSceneMirror SceneMirror => _sceneMirror;
 		public MikanFramePublisher FramePublisher => _framePublisher;
 		public MikanSpoutRenderTargetWriter RenderTargetWriter => _renderTargetWriter;
@@ -80,10 +91,14 @@ namespace MikanXR.Unity
 		public bool IsClientInitialized => _clientInitialized;
 		public bool ShowCameraFrustums => _settings.showCameraFrustums;
 		public bool ShowStencils => _settings.showStencils;
+		public bool ShowLightCones => _settings.showLightCones;
 		public bool RenderStencils => _settings.renderStencils;
 		public bool RenderShadows => _settings.renderShadows;
 		public bool RenderDepth => _settings.renderDepth;
 		public float ShadowStrength => _settings.shadowStrength;
+		public bool ApplyLightEnvironment => _settings.applyLightEnvironment;
+		public bool ApplySpotLights => _settings.applySpotLights;
+		public float LightIntensityScale => _settings.lightIntensityScale;
 
 		// Host-facing setters. The client name must be set before Awake, since it is the id the
 		// editor and the Spout senders are keyed by; the rest take effect at once.
@@ -118,6 +133,47 @@ namespace MikanXR.Unity
 		public void SetShadowStrength(float shadowStrength)
 		{
 			_settings.shadowStrength = Mathf.Clamp01(shadowStrength);
+		}
+
+		public void SetShowLightCones(bool show)
+		{
+			_settings.showLightCones = show;
+			if (_sceneMirror != null)
+			{
+				foreach (MikanRGBSpotLightObject spotLight in _sceneMirror.FindAll<MikanRGBSpotLightObject>())
+				{
+					spotLight.RefreshConeVisibility();
+				}
+			}
+		}
+
+		public void SetApplyLightEnvironment(bool apply)
+		{
+			_settings.applyLightEnvironment = apply;
+		}
+
+		public void SetApplySpotLights(bool apply)
+		{
+			_settings.applySpotLights = apply;
+			RefreshSpotLights();
+		}
+
+		public void SetLightIntensityScale(float scale)
+		{
+			_settings.lightIntensityScale = Mathf.Max(0f, scale);
+			RefreshSpotLights();
+		}
+
+		// The light environments watch the scale themselves; the spot lights are told
+		private void RefreshSpotLights()
+		{
+			if (_sceneMirror != null)
+			{
+				foreach (MikanRGBSpotLightObject spotLight in _sceneMirror.FindAll<MikanRGBSpotLightObject>())
+				{
+					spotLight.RefreshOutput();
+				}
+			}
 		}
 
 		public void SetShowCameraFrustums(bool show)
@@ -168,10 +224,14 @@ namespace MikanXR.Unity
 			_settings.port = _port;
 			_settings.showCameraFrustums = _showCameraFrustums;
 			_settings.showStencils = _showStencils;
+			_settings.showLightCones = _showLightCones;
 			_settings.renderStencils = _renderStencils;
 			_settings.renderShadows = _renderShadows;
 			_settings.renderDepth = _renderDepth;
 			_settings.shadowStrength = _shadowStrength;
+			_settings.applyLightEnvironment = _applyLightEnvironment;
+			_settings.applySpotLights = _applySpotLights;
+			_settings.lightIntensityScale = _lightIntensityScale;
 			_settings.worldScale = _worldScale;
 
 			if (_settingsProvider == null && _persistSettingsToJson)
@@ -402,6 +462,9 @@ namespace MikanXR.Unity
 			case MikanCompositorStoppedEvent stopped:
 				_sceneMirror.RouteCameraEvent(stopped.camera_id, mikanEvent);
 				break;
+			case MikanLightDMXDataChangedEvent dmxChanged:
+				_dmxStore.Apply(dmxChanged.dmx_data);
+				break;
 			}
 
 			EventReceived?.Invoke(mikanEvent);
@@ -449,6 +512,16 @@ namespace MikanXR.Unity
 
 				_clientInitialized = true;
 				_dataStore.RefreshAll();
+
+				// An empty light list subscribes to every light's universe writes
+				SendRequest(new SetLightDMXDataSubcription() { light_ids = new List<int>(), subscribe = true }, dmxResponse =>
+				{
+					if (dmxResponse.resultCode != MikanAPIResult.Success)
+					{
+						Log(MikanLogLevel.Warning, $"MikanClient: DMX subscription failed ({dmxResponse.resultCode})");
+					}
+				});
+
 				Connected?.Invoke();
 			});
 		}
@@ -467,6 +540,7 @@ namespace MikanXR.Unity
 			// The mirrored scene is rebuilt from scratch on the next connection
 			_sceneMirror.Clear();
 			_dataStore.Clear();
+			_dmxStore.Clear();
 
 			if (wasInitialized)
 			{

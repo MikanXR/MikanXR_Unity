@@ -201,6 +201,10 @@ namespace MikanXR.Unity.Tests
 		[UnityTest]
 		public IEnumerator ShadowAndColorBuffersCarryTheStencilPasses()
 		{
+			// The editor's own lights would compete with the test light for the shadow pass, so
+			// only the test light casts here
+			_client.SetApplyLightEnvironment(false);
+			_client.SetApplySpotLights(false);
 			SpawnTestProps();
 			yield return new WaitForSecondsRealtime(k_mirrorSettleSeconds);
 

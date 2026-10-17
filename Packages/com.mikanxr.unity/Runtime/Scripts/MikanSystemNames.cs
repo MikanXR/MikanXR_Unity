@@ -26,6 +26,12 @@ namespace MikanXR.Unity
 		public const string CameraSystem = MikanCameraComponentValues.k_ownerSystemName;
 		public const string CameraComponent = MikanCameraComponentValues.k_componentClassName;
 
+		public const string LightEnvironmentSystem = MikanLightEnvironmentComponentValues.k_ownerSystemName;
+		public const string LightEnvironmentComponent = MikanLightEnvironmentComponentValues.k_componentClassName;
+
+		public const string RGBSpotLightSystem = MikanRGBSpotLightComponentValues.k_ownerSystemName;
+		public const string RGBSpotLightComponent = MikanRGBSpotLightComponentValues.k_componentClassName;
+
 		// A system's component list property, whose update with an invalid component id is the
 		// create and destroy notification
 		public static string ComponentIdListProperty(string componentClass)

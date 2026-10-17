@@ -27,6 +27,8 @@ namespace MikanXR.Unity
 			new SystemEntry() { SystemName = MikanSystemNames.BoxStencilSystem, ComponentClass = MikanSystemNames.BoxStencilComponent, ValuesType = typeof(MikanBoxStencilComponentValues) },
 			new SystemEntry() { SystemName = MikanSystemNames.ModelStencilSystem, ComponentClass = MikanSystemNames.ModelStencilComponent, ValuesType = typeof(MikanModelStencilComponentValues) },
 			new SystemEntry() { SystemName = MikanSystemNames.CameraSystem, ComponentClass = MikanSystemNames.CameraComponent, ValuesType = typeof(MikanCameraComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.LightEnvironmentSystem, ComponentClass = MikanSystemNames.LightEnvironmentComponent, ValuesType = typeof(MikanLightEnvironmentComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.RGBSpotLightSystem, ComponentClass = MikanSystemNames.RGBSpotLightComponent, ValuesType = typeof(MikanRGBSpotLightComponentValues) },
 		};
 
 		private readonly MikanClient _client;

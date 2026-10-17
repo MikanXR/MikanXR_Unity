@@ -82,13 +82,12 @@ namespace MikanXR.Unity
 			_visualizer?.SetVisible(visible);
 		}
 
-		// The helpers only the host should see, hidden around another camera's render
-		public void BeginHelperHide()
+		public override void HideHelpersForRender()
 		{
 			_visualizer?.BeginRender();
 		}
 
-		public void EndHelperHide()
+		public override void RestoreHelpers()
 		{
 			_visualizer?.EndRender();
 		}
@@ -378,9 +377,9 @@ namespace MikanXR.Unity
 			// knockout on each stencil is shown or hidden by the editor's per camera cull rule and
 			// carries the holdout material; without it they all hide, so the preview never reaches
 			// the published frame.
-			foreach (MikanCameraObject camera in Client.SceneMirror.FindAll<MikanCameraObject>())
+			foreach (MikanTransformObject mikanObject in Client.SceneMirror.Objects.Values)
 			{
-				camera.BeginHelperHide();
+				mikanObject.HideHelpersForRender();
 			}
 
 			bool renderStencils = Client.RenderStencils;
@@ -404,9 +403,9 @@ namespace MikanXR.Unity
 				stencil.EndPass();
 			}
 
-			foreach (MikanCameraObject camera in Client.SceneMirror.FindAll<MikanCameraObject>())
+			foreach (MikanTransformObject mikanObject in Client.SceneMirror.Objects.Values)
 			{
-				camera.EndHelperHide();
+				mikanObject.RestoreHelpers();
 			}
 
 			_lastRenderTime = Time.unscaledTime;

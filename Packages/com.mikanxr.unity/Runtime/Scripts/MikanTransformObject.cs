@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace MikanXR.Unity
 {
-	// A mirrored transform component: scenes, stages, anchors, stencils and cameras. The editor
+	// A mirrored transform component: scenes, stages, anchors, stencils, cameras and lights. The editor
 	// sends every transform relative to its parent, so the object applies its relative values to
 	// its local transform and the scene mirror parents it to match.
 	public class MikanTransformObject : MonoBehaviour
@@ -59,6 +59,16 @@ namespace MikanXR.Unity
 				}
 				break;
 			}
+		}
+
+		// Helpers only the host should see (frustums, light cones) leave the scene while a Mikan
+		// camera renders, and come back after
+		public virtual void HideHelpersForRender()
+		{
+		}
+
+		public virtual void RestoreHelpers()
+		{
 		}
 
 		public virtual void ApplyTransform()

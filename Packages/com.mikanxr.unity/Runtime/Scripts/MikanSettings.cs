@@ -31,6 +31,8 @@ namespace MikanXR.Unity
 		public bool showCameraFrustums = true;
 		// The translucent preview the host's own cameras see; the Mikan cameras never render it
 		public bool showStencils = true;
+		// The translucent cones of the spot lights, host view only as well
+		public bool showLightCones = true;
 		public bool renderStencils = true;
 		// The shadow buffer needs stencils to catch on, so it is only published while both are on
 		public bool renderShadows = true;
@@ -38,6 +40,12 @@ namespace MikanXR.Unity
 		// out behind real geometry, so depth is only for a compositor that keys on it
 		public bool renderDepth = false;
 		public float shadowStrength = 0.7f;
+
+		// The editor's lights in the host scene: the captured light environment as the ambient
+		// probe and a key light, and the DMX spot lights as spot lights. The scale multiplies both.
+		public bool applyLightEnvironment = true;
+		public bool applySpotLights = true;
+		public float lightIntensityScale = 1f;
 
 		// The root's own placement in the host scene, for a host that creates the root itself
 		public bool applyRootTransform = false;

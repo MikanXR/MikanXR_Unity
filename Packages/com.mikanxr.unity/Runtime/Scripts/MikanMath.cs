@@ -18,6 +18,12 @@ namespace MikanXR.Unity
 			return new Vector3(v.x, v.y, -v.z);
 		}
 
+		// The same mirror for a direction already held as a Unity vector in Mikan space
+		public static Vector3 ToUnityDirection(Vector3 v)
+		{
+			return new Vector3(v.x, v.y, -v.z);
+		}
+
 		public static Quaternion ToUnityRotation(MikanQuatf q)
 		{
 			return new Quaternion(-q.x, -q.y, q.z, q.w);

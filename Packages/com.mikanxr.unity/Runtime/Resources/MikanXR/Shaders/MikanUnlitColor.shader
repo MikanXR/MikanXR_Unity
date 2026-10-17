@@ -1,10 +1,11 @@
-// A flat color for the helpers the host's own cameras see, such as the camera frustum lines.
-// Shipped with the package so a host build that never included Unity's unlit shaders still has it.
+// A flat color for the helpers the host's own cameras see, such as the camera frustum and light
+// cone lines: the material color times the vertex color a line renderer carries. Shipped with
+// the package so a host build that never included Unity's unlit shaders still has it.
 Shader "MikanXR/UnlitColor"
 {
     Properties
     {
-        _Color ("Color", Color) = (1, 1, 0, 1)
+        _Color ("Color", Color) = (1, 1, 1, 1)
     }
     SubShader
     {
@@ -22,14 +23,23 @@ Shader "MikanXR/UnlitColor"
 
             fixed4 _Color;
 
-            float4 vert(float4 vertex : POSITION) : SV_POSITION
+            struct v2f
             {
-                return UnityObjectToClipPos(vertex);
+                float4 pos : SV_POSITION;
+                fixed4 color : COLOR;
+            };
+
+            v2f vert(float4 vertex : POSITION, fixed4 color : COLOR)
+            {
+                v2f o;
+                o.pos = UnityObjectToClipPos(vertex);
+                o.color = color;
+                return o;
             }
 
-            fixed4 frag() : SV_Target
+            fixed4 frag(v2f i) : SV_Target
             {
-                return _Color;
+                return _Color * i.color;
             }
             ENDCG
         }

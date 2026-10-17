@@ -202,6 +202,10 @@ namespace MikanXR.Unity
 				return gameObject.AddComponent<MikanModelStencilObject>();
 			case MikanSystemNames.CameraSystem:
 				return gameObject.AddComponent<MikanCameraObject>();
+			case MikanSystemNames.LightEnvironmentSystem:
+				return gameObject.AddComponent<MikanLightEnvironmentObject>();
+			case MikanSystemNames.RGBSpotLightSystem:
+				return gameObject.AddComponent<MikanRGBSpotLightObject>();
 			default:
 				Object.Destroy(gameObject);
 				return null;

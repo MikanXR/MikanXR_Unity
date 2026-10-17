@@ -25,10 +25,6 @@ namespace MikanXR.Unity
 			if (s_lineMaterial == null)
 			{
 				s_lineMaterial = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.UnlitColor);
-				if (s_lineMaterial != null)
-				{
-					s_lineMaterial.color = Color.yellow;
-				}
 			}
 
 			if (s_lineMaterial != null)
