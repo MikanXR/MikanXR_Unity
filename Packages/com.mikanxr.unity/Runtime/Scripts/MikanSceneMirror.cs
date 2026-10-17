@@ -79,7 +79,7 @@ namespace MikanXR.Unity
 			}
 
 			_objectsById[componentId] = mikanObject;
-			mikanObject.transform.SetParent(_client.transform, false);
+			mikanObject.transform.SetParent(_client.WorldRoot, false);
 			mikanObject.Bind(_client, systemName, componentId, values);
 			ResolveParent(mikanObject);
 
@@ -125,7 +125,7 @@ namespace MikanXR.Unity
 
 			foreach (Transform child in children)
 			{
-				child.SetParent(_client.transform, false);
+				child.SetParent(_client.WorldRoot, false);
 			}
 
 			mikanObject.Unbind();
@@ -163,7 +163,7 @@ namespace MikanXR.Unity
 		private void ResolveParent(MikanTransformObject mikanObject)
 		{
 			int parentId = mikanObject.DesiredParentId;
-			Transform parent = _client.transform;
+			Transform parent = _client.WorldRoot;
 
 			if (parentId != (int)MikanConstants.InvalidMikanID &&
 				_objectsById.TryGetValue(parentId, out MikanTransformObject parentObject) &&

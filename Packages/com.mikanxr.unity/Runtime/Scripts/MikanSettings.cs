@@ -23,6 +23,11 @@ namespace MikanXR.Unity
 		public string host = "";
 		public string port = "";
 
+		// Unity units per Mikan meter. The editor's scenes are metric and tabletop sized; a host
+		// whose world is built to a different unit, or whose avatar is meant to tower over a desk,
+		// scales the whole mirrored scene by this.
+		public float worldScale = 1f;
+
 		// Layers are indices rather than names, since a player build cannot add a layer
 		public int stencilLayer = 30;
 		public int visualizationLayer = 31;

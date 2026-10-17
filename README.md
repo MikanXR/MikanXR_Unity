@@ -37,6 +37,7 @@ Add a `MikanClient` component to an empty GameObject (the `MikanXR/Add Client To
 
 - Stages carry the editor's tracking spaces. Move a stage object in the Unity scene and call `PinHere` on it (or set a placement in the settings) and the client keeps that placement over the editor's transform for a stage of that name.
 - Cameras sit under their stage. Each has a disabled render camera driven by the editor's frame pacing, a frustum on the visualization layer, and a `MikanSpout camera<N>` object holding its senders.
+- World scale: the editor works in meters and its scenes are tabletop sized. `World Scale` on the client sets Unity units per Mikan meter and scales the whole mirrored scene, cameras and clip planes included, under the client root; the root's own transform stays yours.
 - Layers: the stencils render on the stencil layer and the helpers on the visualization layer. The project names layers 30 and 31 `MikanStencil` and `MikanVisualization`; in a host that cannot add layers, set the indices on the client.
 - Settings persist through an `IMikanSettingsProvider`. The default is none; `Persist Settings To Json` on the client writes a file under the persistent data path, and a host supplies its own store.
 

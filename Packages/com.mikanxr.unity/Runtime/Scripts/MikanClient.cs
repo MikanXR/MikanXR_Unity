@@ -24,6 +24,9 @@ namespace MikanXR.Unity
 		[SerializeField] private MikanLogLevel _minLogLevel = MikanLogLevel.Info;
 
 		[Header("Scene")]
+		[Tooltip("Unity units per Mikan meter. Everything mirrored from the editor is scaled by this under the client root.")]
+		[Min(0.0001f)]
+		[SerializeField] private float _worldScale = 1f;
 		[Tooltip("Layer the stencil meshes render on. The Mikan cameras cull it until the knockout pass is enabled.")]
 		[SerializeField] private int _stencilLayer = 30;
 		[Tooltip("Layer the camera frustums and other helpers render on. The Mikan cameras cull it.")]
@@ -47,6 +50,7 @@ namespace MikanXR.Unity
 			public float deadline;
 		}
 
+		private Transform _worldRoot;
 		private MikanAPI _api;
 		private MikanSpoutRenderTargetWriter _renderTargetWriter;
 		private MikanDataStore _dataStore;
@@ -65,6 +69,9 @@ namespace MikanXR.Unity
 		public MikanFramePublisher FramePublisher => _framePublisher;
 		public MikanSpoutRenderTargetWriter RenderTargetWriter => _renderTargetWriter;
 		public MikanSettings Settings => _settings;
+		// The transform the mirrored scene hangs from: the client root's child that carries the world scale
+		public Transform WorldRoot => _worldRoot;
+		public float WorldScale => _settings.worldScale;
 		public bool IsConnected => _api != null && _api.GetIsConnected();
 		// Connected and past the client handshake, which is when scene data starts flowing
 		public bool IsClientInitialized => _clientInitialized;
@@ -79,6 +86,14 @@ namespace MikanXR.Unity
 		public void SetClientName(string clientName)
 		{
 			_clientName = clientName;
+		}
+
+		public void SetWorldScale(float worldScale)
+		{
+			worldScale = Mathf.Max(worldScale, 0.0001f);
+			_worldScale = worldScale;
+			_settings.worldScale = worldScale;
+			ApplyWorldScale();
 		}
 
 		public void SetRenderStencils(bool renderStencils)
@@ -141,6 +156,7 @@ namespace MikanXR.Unity
 			_settings.showCameraFrustums = _showCameraFrustums;
 			_settings.renderStencils = _renderStencils;
 			_settings.shadowStrength = _shadowStrength;
+			_settings.worldScale = _worldScale;
 
 			if (_settingsProvider == null && _persistSettingsToJson)
 			{
@@ -153,6 +169,11 @@ namespace MikanXR.Unity
 				transform.localEulerAngles = _settings.rootEulerAngles;
 				transform.localScale = _settings.rootScale;
 			}
+
+			var worldRoot = new GameObject("Mikan World");
+			worldRoot.transform.SetParent(transform, false);
+			_worldRoot = worldRoot.transform;
+			ApplyWorldScale();
 
 			// A stable name, since a compositor's client texture source refers to it by name; a
 			// second instance with the same name would collide on the Spout sender names
@@ -437,6 +458,14 @@ namespace MikanXR.Unity
 			}
 
 			_reconnectTimer = _reconnectIntervalSeconds;
+		}
+
+		private void ApplyWorldScale()
+		{
+			if (_worldRoot != null)
+			{
+				_worldRoot.localScale = Vector3.one * _settings.worldScale;
+			}
 		}
 
 		private void HandleLog(MikanLogLevel level, string message)

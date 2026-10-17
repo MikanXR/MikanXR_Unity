@@ -42,6 +42,7 @@ namespace MikanXR.Unity
 		private Vector2Int _pixelSize = Vector2Int.zero;
 		private Vector2Int _auxPixelSize = Vector2Int.zero;
 		private Vector2 _zBounds = new Vector2(0.1f, 20f);
+		private float _appliedWorldScale = 1f;
 
 		private bool _compositorRunning = false;
 		private bool _allocated = false;
@@ -251,22 +252,35 @@ namespace MikanXR.Unity
 			_auxPixelSize = auxPixelSize != null && auxPixelSize.x > 0 && auxPixelSize.y > 0
 				? new Vector2Int(auxPixelSize.x, auxPixelSize.y)
 				: _pixelSize;
-			_zBounds = new Vector2((float)zBounds.x, (float)zBounds.y);
+			// The clip planes arrive in meters and the cameras live in Unity units. The frustum
+			// helper stays in meters, since the world root's scale carries it.
+			_zBounds = new Vector2((float)zBounds.x, (float)zBounds.y) * Client.WorldScale;
+			_appliedWorldScale = Client.WorldScale;
 
 			if (_pixelSize.x > 0 && _pixelSize.y > 0 && focalLength.x > 0 && focalLength.y > 0)
 			{
-				Matrix4x4 projection = MikanMath.ProjectionFromIntrinsics(
-					_pixelSize.x, _pixelSize.y, focalLength.x, focalLength.y,
-					principalPoint.x, principalPoint.y, _zBounds.x, _zBounds.y);
-
-				ApplyProjection(_camera, projection);
-				ApplyProjection(_shadowCamera, projection);
+				_lastFocalLength = new Vector2((float)focalLength.x, (float)focalLength.y);
+				_lastPrincipalPoint = new Vector2((float)principalPoint.x, (float)principalPoint.y);
+				ApplyProjections();
 
 				_visualizer.Rebuild(_pixelSize.x, _pixelSize.y, focalLength.x, focalLength.y,
-					principalPoint.x, principalPoint.y, _zBounds.x, _zBounds.y);
+					principalPoint.x, principalPoint.y, (float)zBounds.x, (float)zBounds.y);
 
 				_hasState = true;
 			}
+		}
+
+		private Vector2 _lastFocalLength;
+		private Vector2 _lastPrincipalPoint;
+
+		private void ApplyProjections()
+		{
+			Matrix4x4 projection = MikanMath.ProjectionFromIntrinsics(
+				_pixelSize.x, _pixelSize.y, _lastFocalLength.x, _lastFocalLength.y,
+				_lastPrincipalPoint.x, _lastPrincipalPoint.y, _zBounds.x, _zBounds.y);
+
+			ApplyProjection(_camera, projection);
+			ApplyProjection(_shadowCamera, projection);
 		}
 
 		private void ApplyProjection(Camera camera, Matrix4x4 projection)
@@ -274,6 +288,19 @@ namespace MikanXR.Unity
 			camera.nearClipPlane = _zBounds.x;
 			camera.farClipPlane = _zBounds.y;
 			camera.projectionMatrix = projection;
+		}
+
+		// A world scale changed at runtime moves the clip planes with it
+		private void RefreshWorldScale()
+		{
+			if (!_hasState || Mathf.Approximately(_appliedWorldScale, Client.WorldScale))
+			{
+				return;
+			}
+
+			_zBounds *= Client.WorldScale / _appliedWorldScale;
+			_appliedWorldScale = Client.WorldScale;
+			ApplyProjections();
 		}
 
 		private void RequestVideoSourceRate()
@@ -301,6 +328,7 @@ namespace MikanXR.Unity
 
 			_camera.cullingMask = Client.RenderCullingMask;
 			_shadowCamera.cullingMask = Client.RenderCullingMask;
+			RefreshWorldScale();
 
 			if (IsVideoFrameSynced)
 			{
