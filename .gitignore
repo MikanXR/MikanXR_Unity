@@ -73,3 +73,5 @@ crashlytics-build.properties
 
 UnityClient.log
 SetMikanVars_x64.bat
+TestResults.xml
+unity_tests.log
