@@ -55,6 +55,8 @@ The tests connect, check that every component the editor reports has an object u
 
 ## Stencils, knockout and shadows
 
+`Render Shadows` (on by default) and `Render Depth` (off by default) choose which of the extra buffers the cameras publish beside color. The knockout alone covers occlusion by real geometry, so depth is only for a compositor graph that keys on it; the editor's render target is allocated without it until it is turned on.
+
 With `Render Stencils` on (the default) every stencil renders into the Mikan cameras twice. In the color pass it is a holdout: it writes depth and no color, so it cuts the character out where real geometry stands in front and leaves the alpha clear for the video. In the shadow pass it is a catcher: the scene renders once with shadows and once without into white targets, and the shadow buffer is their ratio, so only the stencils' shadows survive and the host's own materials are never touched. `Shadow Strength` sets how dark a fully shadowed point gets. The editor's `unity_client_shadow_graph.compgraph` composites the three buffers: video, then the shadow buffer multiplied, then the color buffer over it. The editor's per-stencil cull axis and disabled flag are honored per camera.
 
 The shadows come from the Unity scene's own shadow casting light. The package's shaders live in `Runtime/Resources/MikanXR/Shaders` so a player build keeps them; `MikanXR/Build Shader Bundle` packs them, with the Spout resources, into `mikanxr_shaders.bundle` for a host that loads the client as a plugin.

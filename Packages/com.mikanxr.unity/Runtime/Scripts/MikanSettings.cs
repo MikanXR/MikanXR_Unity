@@ -34,6 +34,11 @@ namespace MikanXR.Unity
 
 		public bool showCameraFrustums = true;
 		public bool renderStencils = true;
+		// The shadow buffer needs stencils to catch on, so it is only published while both are on
+		public bool renderShadows = true;
+		// The packed depth buffer is off by default: the stencil knockout already cuts the character
+		// out behind real geometry, so depth is only for a compositor that keys on it
+		public bool renderDepth = false;
 		public float shadowStrength = 0.7f;
 
 		// The root's own placement in the host scene, for a host that creates the root itself

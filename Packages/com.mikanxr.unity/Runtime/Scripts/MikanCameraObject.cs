@@ -105,7 +105,10 @@ namespace MikanXR.Unity
 
 		// The shadow buffer exists while stencils render as holdouts and the divide shader
 		// resolved; without stencils there is nothing to catch a shadow
-		private bool WantsShadowBuffer => Client.RenderStencils && _shadowDivideMaterial != null;
+		private bool WantsShadowBuffer => Client.RenderStencils && Client.RenderShadows && _shadowDivideMaterial != null;
+
+		// The depth buffer exists while the client asks for it and the pack shader resolved
+		private bool WantsDepthBuffer => Client.RenderDepth && _packDepthMaterial != null;
 
 		public override void Bind(MikanClient client, string systemName, int componentId, MikanComponentValues values)
 		{
@@ -407,15 +410,16 @@ namespace MikanXR.Unity
 			Graphics.Blit(_shadowedTexture, _shadowTexture, _shadowDivideMaterial);
 		}
 
-		// The textures follow the sizes the editor asks for and whether a shadow buffer is wanted;
-		// a change frees the senders so the next frame allocates them again
+		// The textures follow the sizes the editor asks for and which buffers are wanted; a change
+		// frees the senders so the next frame allocates them again
 		private void EnsureTextures()
 		{
 			bool wantsShadow = WantsShadowBuffer;
+			bool wantsDepth = WantsDepthBuffer;
 			bool changed = _colorTexture == null ||
 				_colorTexture.width != _pixelSize.x || _colorTexture.height != _pixelSize.y ||
-				_depthTexture == null ||
-				_depthTexture.width != _auxPixelSize.x || _depthTexture.height != _auxPixelSize.y ||
+				(_depthTexture != null) != wantsDepth ||
+				(_depthTexture != null && (_depthTexture.width != _auxPixelSize.x || _depthTexture.height != _auxPixelSize.y)) ||
 				(_shadowTexture != null) != wantsShadow;
 			if (!changed)
 			{
@@ -431,7 +435,10 @@ namespace MikanXR.Unity
 			ReleaseTextures();
 
 			_colorTexture = CreateTexture($"Mikan camera {ComponentId} color", _pixelSize, 24);
-			_depthTexture = CreateTexture($"Mikan camera {ComponentId} depth", _auxPixelSize, 0);
+			if (wantsDepth)
+			{
+				_depthTexture = CreateTexture($"Mikan camera {ComponentId} depth", _auxPixelSize, 0);
+			}
 			if (wantsShadow)
 			{
 				_shadowTexture = CreateTexture($"Mikan camera {ComponentId} shadow", _auxPixelSize, 0);
@@ -442,16 +449,16 @@ namespace MikanXR.Unity
 			_camera.targetTexture = _colorTexture;
 
 			// The depth pack runs inside the camera's render, where the camera depth texture is
-			// the one this camera produced. Without the pack shader the camera publishes color only.
-			if (_packDepthMaterial != null)
+			// the one this camera produced, and that texture is only rendered while it is wanted
+			_camera.depthTextureMode = wantsDepth ? DepthTextureMode.Depth : DepthTextureMode.None;
+			if (wantsDepth)
 			{
 				_packDepthCommands = new CommandBuffer() { name = "MikanXR pack depth" };
 				_packDepthCommands.Blit(BuiltinRenderTextureType.None, _depthTexture, _packDepthMaterial);
 				_camera.AddCommandBuffer(CameraEvent.AfterEverything, _packDepthCommands);
 			}
 
-			Client.RenderTargetWriter.SetTextures(
-				ComponentId, _colorTexture, _packDepthMaterial != null ? _depthTexture : null, _shadowTexture);
+			Client.RenderTargetWriter.SetTextures(ComponentId, _colorTexture, _depthTexture, _shadowTexture);
 		}
 
 		private static RenderTexture CreateTexture(string textureName, Vector2Int size, int depthBits)
@@ -528,7 +535,7 @@ namespace MikanXR.Unity
 				descriptor = new MikanRenderTargetDescriptor()
 				{
 					color_buffer_type = MikanColorBufferType.RGBA32,
-					depth_buffer_type = _packDepthMaterial != null ? MikanDepthBufferType.PACK_DEPTH_RGBA : MikanDepthBufferType.NODEPTH,
+					depth_buffer_type = _depthTexture != null ? MikanDepthBufferType.PACK_DEPTH_RGBA : MikanDepthBufferType.NODEPTH,
 					shadow_buffer_type = withShadow ? MikanShadowBufferType.RGBA32 : MikanShadowBufferType.NOSHADOW,
 					width = (uint)requestedSize.x,
 					height = (uint)requestedSize.y,

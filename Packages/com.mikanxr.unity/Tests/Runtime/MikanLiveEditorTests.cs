@@ -177,8 +177,15 @@ namespace MikanXR.Unity.Tests
 			Assert.That(activeCamera.IsAllocated, "the rendering camera never allocated its render targets");
 			Assert.That(activeCamera.ColorTexture, Is.Not.Null);
 			Assert.That(activeCamera.ColorTexture.width, Is.EqualTo(activeCamera.PixelSize.x));
-			Assert.That(activeCamera.DepthTexture, Is.Not.Null, "no packed depth texture");
-			if (_client.RenderStencils)
+			if (_client.RenderDepth)
+			{
+				Assert.That(activeCamera.DepthTexture, Is.Not.Null, "depth is on but no packed depth texture was created");
+			}
+			else
+			{
+				Assert.That(activeCamera.DepthTexture, Is.Null, "depth is off but a depth texture was created");
+			}
+			if (_client.RenderStencils && _client.RenderShadows)
 			{
 				Assert.That(activeCamera.ShadowTexture, Is.Not.Null, "stencils render but no shadow texture was created");
 			}
@@ -205,9 +212,9 @@ namespace MikanXR.Unity.Tests
 			}
 			Debug.Log($"[MikanXR test] {stencilCount} stencils mirrored, render stencils: {_client.RenderStencils}");
 
-			if (stencilCount == 0 || !_client.RenderStencils)
+			if (stencilCount == 0 || !_client.RenderStencils || !_client.RenderShadows)
 			{
-				Assert.Ignore("The editor's project has no stencil, or stencil rendering is off");
+				Assert.Ignore("The editor's project has no stencil, or stencil or shadow rendering is off");
 			}
 
 			MikanCameraObject activeCamera = null;

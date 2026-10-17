@@ -34,6 +34,10 @@ namespace MikanXR.Unity
 		[SerializeField] private bool _showCameraFrustums = true;
 		[Tooltip("Render the stencils into the Mikan cameras as knockout holdouts.")]
 		[SerializeField] private bool _renderStencils = true;
+		[Tooltip("Render the shadow pass and publish the shadow buffer. Needs stencils to catch the shadows.")]
+		[SerializeField] private bool _renderShadows = true;
+		[Tooltip("Pack and publish the depth buffer. The stencil knockout covers occlusion without it, so it is off unless a compositor keys on depth.")]
+		[SerializeField] private bool _renderDepth = false;
 		[Tooltip("How dark a fully shadowed point on a stencil gets in the shadow buffer: 1 is black, 0 is no shadow.")]
 		[Range(0f, 1f)]
 		[SerializeField] private float _shadowStrength = 0.7f;
@@ -79,6 +83,8 @@ namespace MikanXR.Unity
 		public int VisualizationLayer => _settings.visualizationLayer;
 		public bool ShowCameraFrustums => _settings.showCameraFrustums;
 		public bool RenderStencils => _settings.renderStencils;
+		public bool RenderShadows => _settings.renderShadows;
+		public bool RenderDepth => _settings.renderDepth;
 		public float ShadowStrength => _settings.shadowStrength;
 
 		// Host-facing setters. The client name must be set before Awake, since it is the id the
@@ -99,6 +105,16 @@ namespace MikanXR.Unity
 		public void SetRenderStencils(bool renderStencils)
 		{
 			_settings.renderStencils = renderStencils;
+		}
+
+		public void SetRenderShadows(bool renderShadows)
+		{
+			_settings.renderShadows = renderShadows;
+		}
+
+		public void SetRenderDepth(bool renderDepth)
+		{
+			_settings.renderDepth = renderDepth;
 		}
 
 		public void SetShadowStrength(float shadowStrength)
@@ -155,6 +171,8 @@ namespace MikanXR.Unity
 			_settings.visualizationLayer = _visualizationLayer;
 			_settings.showCameraFrustums = _showCameraFrustums;
 			_settings.renderStencils = _renderStencils;
+			_settings.renderShadows = _renderShadows;
+			_settings.renderDepth = _renderDepth;
 			_settings.shadowStrength = _shadowStrength;
 			_settings.worldScale = _worldScale;
 
