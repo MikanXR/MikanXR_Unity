@@ -11,6 +11,8 @@ namespace MikanXR.Unity
 	{
 		public const string PackDepthRGBA = "MikanXR/PackDepthRGBA";
 		public const string StencilHoldout = "MikanXR/StencilHoldout";
+		public const string StencilPreview = "MikanXR/StencilPreview";
+		public const string UnlitColor = "MikanXR/UnlitColor";
 		public const string ShadowCatcher = "MikanXR/ShadowCatcher";
 		public const string ShadowDivide = "MikanXR/ShadowDivide";
 
@@ -71,21 +73,6 @@ namespace MikanXR.Unity
 			}
 
 			return shader;
-		}
-
-		// The first of the names that resolves, for a built-in fallback chain
-		public static Shader FindAny(params string[] shaderNames)
-		{
-			foreach (string shaderName in shaderNames)
-			{
-				Shader shader = Find(shaderName);
-				if (shader != null)
-				{
-					return shader;
-				}
-			}
-
-			return null;
 		}
 
 		// Null, with one error per shader name, when nothing resolves it

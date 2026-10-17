@@ -27,11 +27,10 @@ namespace MikanXR.Unity
 		[Tooltip("Unity units per Mikan meter. Everything mirrored from the editor is scaled by this under the client root.")]
 		[Min(0.0001f)]
 		[SerializeField] private float _worldScale = 1f;
-		[Tooltip("Layer the stencil meshes render on. The Mikan cameras cull it until the knockout pass is enabled.")]
-		[SerializeField] private int _stencilLayer = 30;
-		[Tooltip("Layer the camera frustums and other helpers render on. The Mikan cameras cull it.")]
-		[SerializeField] private int _visualizationLayer = 31;
+		[Tooltip("Draw each Mikan camera's frustum in the host's own view. The Mikan cameras never see it.")]
 		[SerializeField] private bool _showCameraFrustums = true;
+		[Tooltip("Draw the stencils in the host's own view as translucent previews. The Mikan cameras never see the preview.")]
+		[SerializeField] private bool _showStencils = true;
 		[Tooltip("Render the stencils into the Mikan cameras as knockout holdouts.")]
 		[SerializeField] private bool _renderStencils = true;
 		[Tooltip("Render the shadow pass and publish the shadow buffer. Needs stencils to catch the shadows.")]
@@ -79,9 +78,8 @@ namespace MikanXR.Unity
 		public bool IsConnected => _api != null && _api.GetIsConnected();
 		// Connected and past the client handshake, which is when scene data starts flowing
 		public bool IsClientInitialized => _clientInitialized;
-		public int StencilLayer => _settings.stencilLayer;
-		public int VisualizationLayer => _settings.visualizationLayer;
 		public bool ShowCameraFrustums => _settings.showCameraFrustums;
+		public bool ShowStencils => _settings.showStencils;
 		public bool RenderStencils => _settings.renderStencils;
 		public bool RenderShadows => _settings.renderShadows;
 		public bool RenderDepth => _settings.renderDepth;
@@ -134,26 +132,27 @@ namespace MikanXR.Unity
 			}
 		}
 
+		public void SetShowStencils(bool show)
+		{
+			_settings.showStencils = show;
+			if (_sceneMirror != null)
+			{
+				foreach (MikanStencilObject stencil in _sceneMirror.FindAll<MikanStencilObject>())
+				{
+					stencil.RefreshHostView();
+				}
+			}
+		}
+
 		public event Action Connected;
 		public event Action Disconnected;
 		public event Action<MikanEvent> EventReceived;
 		public event Action<MikanLogLevel, string> LogMessage;
 
-		// What the Mikan cameras render: everything but the UI, the helpers, and the stencils
-		// until the knockout pass is on
-		public int RenderCullingMask
-		{
-			get
-			{
-				int mask = ~((1 << k_uiLayer) | (1 << VisualizationLayer));
-				if (!RenderStencils)
-				{
-					mask &= ~(1 << StencilLayer);
-				}
-
-				return mask;
-			}
-		}
+		// What the Mikan cameras render: every layer but Unity's UI layer. The helpers and the
+		// stencils hide themselves around each Mikan render instead of living on a layer of their
+		// own, since a host may not render the spare layers.
+		public int RenderCullingMask => ~(1 << k_uiLayer);
 
 		// A host installs its store before the client awakes (create the object inactive, set this,
 		// then activate), so the stored settings override the inspector's
@@ -167,9 +166,8 @@ namespace MikanXR.Unity
 		{
 			_settings.host = _host;
 			_settings.port = _port;
-			_settings.stencilLayer = _stencilLayer;
-			_settings.visualizationLayer = _visualizationLayer;
 			_settings.showCameraFrustums = _showCameraFrustums;
+			_settings.showStencils = _showStencils;
 			_settings.renderStencils = _renderStencils;
 			_settings.renderShadows = _renderShadows;
 			_settings.renderDepth = _renderDepth;

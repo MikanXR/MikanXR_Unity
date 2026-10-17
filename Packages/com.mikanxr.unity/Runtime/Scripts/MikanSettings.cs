@@ -28,11 +28,9 @@ namespace MikanXR.Unity
 		// scales the whole mirrored scene by this.
 		public float worldScale = 1f;
 
-		// Layers are indices rather than names, since a player build cannot add a layer
-		public int stencilLayer = 30;
-		public int visualizationLayer = 31;
-
 		public bool showCameraFrustums = true;
+		// The translucent preview the host's own cameras see; the Mikan cameras never render it
+		public bool showStencils = true;
 		public bool renderStencils = true;
 		// The shadow buffer needs stencils to catch on, so it is only published while both are on
 		public bool renderShadows = true;

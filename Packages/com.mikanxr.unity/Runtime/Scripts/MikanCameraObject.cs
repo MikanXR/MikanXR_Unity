@@ -82,6 +82,17 @@ namespace MikanXR.Unity
 			_visualizer?.SetVisible(visible);
 		}
 
+		// The helpers only the host should see, hidden around another camera's render
+		public void BeginHelperHide()
+		{
+			_visualizer?.BeginRender();
+		}
+
+		public void EndHelperHide()
+		{
+			_visualizer?.EndRender();
+		}
+
 		public bool IsVideoFrameSynced
 		{
 			get
@@ -128,7 +139,7 @@ namespace MikanXR.Unity
 			var visualizerObject = new GameObject("Frustum");
 			visualizerObject.transform.SetParent(transform, false);
 			_visualizer = visualizerObject.AddComponent<MikanCameraVisualizer>();
-			_visualizer.Initialize(client.VisualizationLayer);
+			_visualizer.Initialize();
 			_visualizer.SetVisible(client.ShowCameraFrustums);
 
 			_packDepthMaterial = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.PackDepthRGBA);
@@ -363,17 +374,22 @@ namespace MikanXR.Unity
 				_packDepthMaterial.SetFloat("_MikanZFar", _zBounds.y);
 			}
 
-			// The editor's cull rule is per camera, so each stencil is shown or hidden for this one,
-			// and the stencils carry the holdout material for the color render
-			if (Client.RenderStencils)
+			// The host-only helpers and the stencils leave the host view for this render. With the
+			// knockout on each stencil is shown or hidden by the editor's per camera cull rule and
+			// carries the holdout material; without it they all hide, so the preview never reaches
+			// the published frame.
+			foreach (MikanCameraObject camera in Client.SceneMirror.FindAll<MikanCameraObject>())
 			{
-				Vector3 cameraPosition = transform.position;
-				Vector3 cameraForward = transform.forward;
-				foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
-				{
-					stencil.SetVisibleForCamera(stencil.IsFacingCamera(cameraPosition, cameraForward));
-					stencil.SetPass(MikanStencilPass.Holdout);
-				}
+				camera.BeginHelperHide();
+			}
+
+			bool renderStencils = Client.RenderStencils;
+			Vector3 cameraPosition = transform.position;
+			Vector3 cameraForward = transform.forward;
+			foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
+			{
+				stencil.BeginPass(MikanStencilPass.Holdout,
+					renderStencils && stencil.IsFacingCamera(cameraPosition, cameraForward));
 			}
 
 			_camera.Render();
@@ -381,6 +397,16 @@ namespace MikanXR.Unity
 			if (_shadowTexture != null)
 			{
 				RenderShadowPass();
+			}
+
+			foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
+			{
+				stencil.EndPass();
+			}
+
+			foreach (MikanCameraObject camera in Client.SceneMirror.FindAll<MikanCameraObject>())
+			{
+				camera.EndHelperHide();
 			}
 
 			_lastRenderTime = Time.unscaledTime;

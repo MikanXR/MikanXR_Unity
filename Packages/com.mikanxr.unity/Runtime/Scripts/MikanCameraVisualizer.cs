@@ -2,19 +2,18 @@ using UnityEngine;
 
 namespace MikanXR.Unity
 {
-	// Draws a Mikan camera's frustum from its intrinsics, on the visualization layer the Mikan
-	// cameras cull, so the host's own view shows where each camera looks from
+	// Draws a Mikan camera's frustum from its intrinsics, so the host's own view shows where each
+	// camera looks from. It hides around every Mikan render, so the published frames never carry it.
 	public class MikanCameraVisualizer : MonoBehaviour
 	{
 		private const int k_frustumPointCount = 26;
 
 		private LineRenderer _lineRenderer;
+		private bool _visible = true;
 		private static Material s_lineMaterial;
 
-		public void Initialize(int visualizationLayer)
+		public void Initialize()
 		{
-			gameObject.layer = visualizationLayer;
-
 			_lineRenderer = gameObject.AddComponent<LineRenderer>();
 			_lineRenderer.useWorldSpace = false;
 			_lineRenderer.startWidth = 0.01f;
@@ -25,10 +24,9 @@ namespace MikanXR.Unity
 
 			if (s_lineMaterial == null)
 			{
-				Shader shader = MikanShaderLibrary.FindAny("Unlit/Color", "Sprites/Default", "Legacy Shaders/Diffuse");
-				if (shader != null)
+				s_lineMaterial = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.UnlitColor);
+				if (s_lineMaterial != null)
 				{
-					s_lineMaterial = new Material(shader) { hideFlags = HideFlags.DontSave };
 					s_lineMaterial.color = Color.yellow;
 				}
 			}
@@ -43,9 +41,24 @@ namespace MikanXR.Unity
 
 		public void SetVisible(bool visible)
 		{
+			_visible = visible;
+			EndRender();
+		}
+
+		// A Mikan camera is about to render; EndRender gives the host view back
+		public void BeginRender()
+		{
 			if (_lineRenderer != null)
 			{
-				_lineRenderer.enabled = visible;
+				_lineRenderer.enabled = false;
+			}
+		}
+
+		public void EndRender()
+		{
+			if (_lineRenderer != null)
+			{
+				_lineRenderer.enabled = _visible;
 			}
 		}
 

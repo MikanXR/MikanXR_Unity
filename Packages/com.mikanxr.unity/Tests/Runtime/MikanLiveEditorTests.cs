@@ -83,7 +83,6 @@ namespace MikanXR.Unity.Tests
 			// is checked without depending on where the editor's stencils happen to sit
 			GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Quad);
 			floor.name = "Test Catcher";
-			floor.layer = _client.StencilLayer;
 			floor.transform.position = Vector3.zero;
 			floor.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 			floor.transform.localScale = Vector3.one * 2f;

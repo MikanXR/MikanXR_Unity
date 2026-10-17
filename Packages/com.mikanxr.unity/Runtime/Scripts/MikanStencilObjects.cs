@@ -10,18 +10,17 @@ namespace MikanXR.Unity
 		ShadowCatcher,
 	}
 
-	// A stencil mesh on the client's stencil layer. With stencil rendering on it is a holdout in
-	// the Mikan cameras' color pass and a shadow catcher in their shadow pass, and the camera
-	// swaps its material between the two before each render; otherwise it carries a preview
-	// material for the scene view and the Mikan cameras cull its layer.
+	// A stencil mesh. In the host's own view it rests on a translucent preview, or hidden, by the
+	// client's show-stencils setting. A Mikan camera turns it into a holdout for its color pass and
+	// a shadow catcher for its shadow pass around its renders, then hands it back to the host view.
 	public abstract class MikanStencilObject : MikanTransformObject
 	{
-		private static Material s_previewMaterial;
+		private static readonly Material[] s_previewMaterials = new Material[2];
 		private static readonly Material[] s_passMaterials = new Material[4];
 
 		private MeshFilter _meshFilter;
 		private MeshRenderer _meshRenderer;
-		private bool _usingHoldout = false;
+		private bool _inPass;
 
 		public MikanStencilComponentValues StencilValues => TransformValues as MikanStencilComponentValues;
 		public MeshRenderer MeshRenderer => _meshRenderer;
@@ -32,16 +31,13 @@ namespace MikanXR.Unity
 		{
 			base.Bind(client, systemName, componentId, values);
 
-			gameObject.layer = client.StencilLayer;
-
 			_meshFilter = gameObject.AddComponent<MeshFilter>();
 			_meshRenderer = gameObject.AddComponent<MeshRenderer>();
 			_meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
 			_meshRenderer.receiveShadows = true;
 
 			RebuildMesh();
-			ApplyMaterial();
-			ApplyEnabled();
+			RefreshHostView();
 		}
 
 		public override void Unbind()
@@ -60,20 +56,12 @@ namespace MikanXR.Unity
 
 			if (fieldName == "is_disabled")
 			{
-				ApplyEnabled();
+				RefreshHostView();
 			}
 			else if (IsGeometryField(fieldName))
 			{
 				RebuildMesh();
-				ApplyMaterial();
-			}
-		}
-
-		private void LateUpdate()
-		{
-			if (IsBound && _usingHoldout != Client.RenderStencils)
-			{
-				ApplyMaterial();
+				RefreshHostView();
 			}
 		}
 
@@ -106,18 +94,24 @@ namespace MikanXR.Unity
 			return Vector3.Dot(cameraToStencil, cameraForward) > 0f && Vector3.Dot(-cameraToStencil, stencilAxis) > 0f;
 		}
 
-		public void SetVisibleForCamera(bool visible)
+		// A Mikan camera is about to render: the stencil shows or hides for that camera and carries
+		// the material of its first pass, until EndPass hands it back to the host view
+		public void BeginPass(MikanStencilPass pass, bool visibleForCamera)
 		{
-			if (_meshRenderer != null)
+			if (_meshRenderer == null)
 			{
-				_meshRenderer.enabled = visible && !IsDisabled;
+				return;
 			}
+
+			_inPass = true;
+			_meshRenderer.enabled = visibleForCamera && !IsDisabled;
+			SetPass(pass);
 		}
 
-		// The material of the pass a camera is about to render, while stencils render
+		// The camera's next pass, keeping the visibility BeginPass decided
 		public void SetPass(MikanStencilPass pass)
 		{
-			if (_meshRenderer == null || !_usingHoldout)
+			if (_meshRenderer == null || !_inPass)
 			{
 				return;
 			}
@@ -130,6 +124,29 @@ namespace MikanXR.Unity
 					material.SetFloat("_ShadowStrength", Client.ShadowStrength);
 				}
 
+				_meshRenderer.sharedMaterial = material;
+			}
+		}
+
+		public void EndPass()
+		{
+			_inPass = false;
+			RefreshHostView();
+		}
+
+		// What the host's own cameras see between Mikan renders: the translucent preview while the
+		// client shows stencils, nothing otherwise
+		public void RefreshHostView()
+		{
+			if (_meshRenderer == null || !IsBound || _inPass)
+			{
+				return;
+			}
+
+			_meshRenderer.enabled = Client.ShowStencils && !IsDisabled;
+			Material material = GetPreviewMaterial(IsDoubleSided);
+			if (material != null)
+			{
 				_meshRenderer.sharedMaterial = material;
 			}
 		}
@@ -163,44 +180,21 @@ namespace MikanXR.Unity
 			}
 		}
 
-		private void ApplyEnabled()
+		private static Material GetPreviewMaterial(bool doubleSided)
 		{
-			if (_meshRenderer != null)
+			int slot = doubleSided ? 1 : 0;
+			if (s_previewMaterials[slot] == null)
 			{
-				_meshRenderer.enabled = !IsDisabled;
-			}
-		}
-
-		private void ApplyMaterial()
-		{
-			if (_meshRenderer == null || !IsBound)
-			{
-				return;
-			}
-
-			_usingHoldout = Client.RenderStencils;
-			Material material = _usingHoldout ? GetPassMaterial(MikanStencilPass.Holdout, IsDoubleSided) : GetPreviewMaterial();
-			if (material != null)
-			{
-				_meshRenderer.sharedMaterial = material;
-			}
-		}
-
-		private static Material GetPreviewMaterial()
-		{
-			if (s_previewMaterial == null)
-			{
-				Shader shader = MikanShaderLibrary.FindAny("Standard", "Legacy Shaders/Diffuse", "Sprites/Default");
-				if (shader == null)
+				Material material = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.StencilPreview);
+				if (material != null)
 				{
-					return null;
+					material.SetFloat("_Cull", doubleSided ? (float)CullMode.Off : (float)CullMode.Back);
 				}
 
-				s_previewMaterial = new Material(shader) { hideFlags = HideFlags.DontSave };
-				s_previewMaterial.color = new Color(0.2f, 0.8f, 1.0f, 1.0f);
+				s_previewMaterials[slot] = material;
 			}
 
-			return s_previewMaterial;
+			return s_previewMaterials[slot];
 		}
 
 		private static Material GetPassMaterial(MikanStencilPass pass, bool doubleSided)
