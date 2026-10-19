@@ -12,6 +12,7 @@ namespace MikanXR.Unity
 		public const string PackDepthRGBA = "MikanXR/PackDepthRGBA";
 		public const string StencilHoldout = "MikanXR/StencilHoldout";
 		public const string StencilPreview = "MikanXR/StencilPreview";
+		public const string StencilPreviewTextured = "MikanXR/StencilPreviewTextured";
 		public const string UnlitColor = "MikanXR/UnlitColor";
 		public const string ShadowCatcher = "MikanXR/ShadowCatcher";
 		public const string ShadowDivide = "MikanXR/ShadowDivide";

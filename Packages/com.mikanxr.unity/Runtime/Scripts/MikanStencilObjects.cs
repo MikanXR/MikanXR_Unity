@@ -10,12 +10,14 @@ namespace MikanXR.Unity
 		ShadowCatcher,
 	}
 
-	// A stencil mesh. In the host's own view it rests on a translucent preview, or hidden, by the
-	// client's show-stencils setting. A Mikan camera turns it into a holdout for its color pass and
-	// a shadow catcher for its shadow pass around its renders, then hands it back to the host view.
+	// A stencil mesh. In the host's own view it rests on a preview, or hidden, by the client's
+	// show-stencils setting: a translucent tint, or its own texture drawn opaque when it has one.
+	// A Mikan camera turns it into a holdout for its color pass and a shadow catcher for its shadow
+	// pass around its renders, then hands it back to the host view.
 	public abstract class MikanStencilObject : MikanTransformObject
 	{
-		private static readonly Material[] s_previewMaterials = new Material[2];
+		// Preview materials by textured and double sided, pass materials by pass and double sided
+		private static readonly Material[] s_previewMaterials = new Material[4];
 		private static readonly Material[] s_passMaterials = new Material[4];
 
 		private static readonly int s_mainTexId = Shader.PropertyToID("_MainTex");
@@ -24,6 +26,7 @@ namespace MikanXR.Unity
 		private MeshFilter _meshFilter;
 		private MeshRenderer _meshRenderer;
 		private MaterialPropertyBlock _previewProperties;
+		private Texture2D _previewTexture;
 		private bool _inPass;
 
 		public MikanStencilComponentValues StencilValues => TransformValues as MikanStencilComponentValues;
@@ -138,8 +141,8 @@ namespace MikanXR.Unity
 			RefreshHostView();
 		}
 
-		// What the host's own cameras see between Mikan renders: the translucent preview while the
-		// client shows stencils, nothing otherwise
+		// What the host's own cameras see between Mikan renders: the preview while the client shows
+		// stencils, nothing otherwise
 		public void RefreshHostView()
 		{
 			if (_meshRenderer == null || !IsBound || _inPass)
@@ -148,7 +151,7 @@ namespace MikanXR.Unity
 			}
 
 			_meshRenderer.enabled = Client.ShowStencils && !IsDisabled;
-			Material material = GetPreviewMaterial(IsDoubleSided);
+			Material material = GetPreviewMaterial(_previewTexture != null, IsDoubleSided);
 			if (material != null)
 			{
 				_meshRenderer.sharedMaterial = material;
@@ -168,9 +171,9 @@ namespace MikanXR.Unity
 			SetMesh(BuildMesh());
 		}
 
-		// Shows the stencil's own texture on its host-view preview, or the plain tint when null. It
-		// rides on a property block because the preview material is shared by every stencil, and the
-		// pass materials ignore it.
+		// Shows the stencil's own texture on its host-view preview, or the plain tint when null. The
+		// texture rides on a property block because the preview material is shared by every stencil,
+		// and the pass materials ignore it.
 		protected void SetPreviewTexture(Texture2D texture)
 		{
 			if (_meshRenderer == null)
@@ -178,17 +181,21 @@ namespace MikanXR.Unity
 				return;
 			}
 
+			_previewTexture = texture;
+
 			if (texture == null)
 			{
 				_meshRenderer.SetPropertyBlock(null);
-				return;
+			}
+			else
+			{
+				_previewProperties ??= new MaterialPropertyBlock();
+				_previewProperties.SetTexture(s_mainTexId, texture);
+				_previewProperties.SetColor(s_colorId, Color.white);
+				_meshRenderer.SetPropertyBlock(_previewProperties);
 			}
 
-			_previewProperties ??= new MaterialPropertyBlock();
-			_previewProperties.SetTexture(s_mainTexId, texture);
-			// A textured preview shows the texture's own colors, nearly opaque
-			_previewProperties.SetColor(s_colorId, new Color(1f, 1f, 1f, 0.85f));
-			_meshRenderer.SetPropertyBlock(_previewProperties);
+			RefreshHostView();
 		}
 
 		protected void SetMesh(Mesh mesh)
@@ -207,12 +214,15 @@ namespace MikanXR.Unity
 			}
 		}
 
-		private static Material GetPreviewMaterial(bool doubleSided)
+		private static Material GetPreviewMaterial(bool textured, bool doubleSided)
 		{
-			int slot = doubleSided ? 1 : 0;
+			int slot = (textured ? 2 : 0) + (doubleSided ? 1 : 0);
 			if (s_previewMaterials[slot] == null)
 			{
-				Material material = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.StencilPreview);
+				string shaderName = textured
+					? MikanShaderLibrary.StencilPreviewTextured
+					: MikanShaderLibrary.StencilPreview;
+				Material material = MikanShaderLibrary.CreateMaterial(shaderName);
 				if (material != null)
 				{
 					material.SetFloat("_Cull", doubleSided ? (float)CullMode.Off : (float)CullMode.Back);
