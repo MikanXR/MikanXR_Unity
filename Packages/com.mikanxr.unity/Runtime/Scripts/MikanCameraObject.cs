@@ -398,6 +398,8 @@ namespace MikanXR.Unity
 				RenderShadowPass();
 			}
 
+			Client.RenderTargetWriter.StageRawBuffers(ComponentId);
+
 			foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
 			{
 				stencil.EndPass();
@@ -533,6 +535,7 @@ namespace MikanXR.Unity
 			if (IsBound)
 			{
 				Client.RenderTargetWriter.FreeRenderTargetTextures(ComponentId);
+				Client.RenderTargetWriter.SetTextures(ComponentId, null, null, null);
 			}
 		}
 

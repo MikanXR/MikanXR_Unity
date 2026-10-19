@@ -16,6 +16,7 @@ namespace MikanXR.Unity
 		public const string UnlitColor = "MikanXR/UnlitColor";
 		public const string ShadowCatcher = "MikanXR/ShadowCatcher";
 		public const string ShadowDivide = "MikanXR/ShadowDivide";
+		public const string SrgbRawBytes = "MikanXR/SrgbRawBytes";
 
 		private const string k_resourcesFolder = "MikanXR/Shaders/";
 
