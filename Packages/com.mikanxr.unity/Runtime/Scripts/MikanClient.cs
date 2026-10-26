@@ -61,6 +61,8 @@ namespace MikanXR.Unity
 		private const float k_requestTimeoutSeconds = 5f;
 		private const int k_uiLayer = 5;
 
+		private int _renderCullingMask = ~(1 << k_uiLayer);
+
 		private class PendingRequest
 		{
 			public MikanResponseFuture future;
@@ -216,7 +218,14 @@ namespace MikanXR.Unity
 		// What the Mikan cameras render: every layer but Unity's UI layer. The helpers and the
 		// stencils hide themselves around each Mikan render instead of living on a layer of their
 		// own, since a host may not render the spare layers.
-		public int RenderCullingMask => ~(1 << k_uiLayer);
+		public int RenderCullingMask => _renderCullingMask;
+
+		// A host with its own layer scheme names what the Mikan cameras render. The cameras pick
+		// it up on their next frame.
+		public void SetRenderCullingMask(int mask)
+		{
+			_renderCullingMask = mask;
+		}
 
 		// A host installs its store before the client awakes (create the object inactive, set this,
 		// then activate), so the stored settings override the inspector's
