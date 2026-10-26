@@ -7,12 +7,13 @@ The package is managed code only. It talks to the editor over the websocket clie
 ## Layout
 
 - `Packages/com.mikanxr.unity/`: the package
-	- `Runtime/Bindings/`: the MikanXR C# bindings, copied from a client SDK by `FetchMikan.bat` and never edited here
-	- `Runtime/Scripts/`: the client, the data store, the scene mirror, the camera, the Spout writer
+	- `Runtime/Bindings/`: the MikanXR C# bindings, copied from a client SDK by `FetchMikan.bat` and never edited here. `Native/` within it is host-optional (see Hosts).
+	- `Runtime/Scripts/`: the client, the data store, the scene mirror, the camera, the Spout writer. `FileSystem/` within it is host-optional.
 	- `Runtime/Shaders/`: the depth packing shader
 	- `Runtime/Resources/MikanXR/`: the KlakSpout resources asset the senders need at runtime
 	- `Editor/`: the test scene setup menu
 	- `Tests/Runtime/`: play mode tests that run against a live editor
+	- `Tests/Editor/`: an edit mode test that keeps the runtime compilable in a sandboxed host
 - `Assets/`: the test project around the package (the `MikanTestScene` scene, a sample character)
 
 ## Requirements
@@ -42,6 +43,20 @@ Add a `MikanClient` component to an empty GameObject (the `MikanXR/Add Client To
 - Lights: a light environment the editor captured becomes the scene's ambient probe and, when its directionality is confident, a directional key light, both under `Apply Light Environment`. The editor's RGB spot lights become Unity spot lights under `Apply Spot Lights`, lit from the live DMX channels the client subscribes to. `Light Intensity Scale` multiplies both.
 - Settings persist through an `IMikanSettingsProvider`. The default is none; `Persist Settings To Json` on the client writes a file under the persistent data path, and a host supplies its own store.
 
+## Hosts
+
+A host that loads the client as a plugin rather than building it into a project supplies two things before the client starts:
+
+- a settings store, through `MikanClient.SettingsProvider` (an `IMikanSettingsProvider`)
+- the package's shaders and assets, which its build never saw, through `MikanShaderLibrary.SetBundle` for an AssetBundle or `MikanShaderLibrary.SetAssetSource` for any other `IMikanAssetSource`, which is handed the package's Resources-relative paths
+
+A sandboxed host that forbids `System.IO`, `System.Reflection` and P/Invoke, such as a Warudo plugin mod, compiles `Runtime/` from source without two folders:
+
+- `Runtime/Bindings/Native/`, the P/Invoke transport and writer and the native `MikanAPI()` constructor. The client runs on the managed websocket transport either way.
+- `Runtime/Scripts/FileSystem/`, the JSON file settings provider and the client's default that creates it. Without it the default is no persistence.
+
+The edit mode test compiles exactly that subset and scans it against the Warudo mod tools' rules, so a change that reaches for a forbidden API fails here rather than at a mod export.
+
 Conventions: Mikan space is right handed with -Z forward and Unity's is left handed with +Z forward, so the package mirrors Z once, in `MikanMath`. Camera poses on the wire are relative to the camera's stage. Depth is published as the editor's `PACK_DEPTH_RGBA` encoding.
 
 ## Testing against the editor
@@ -53,6 +68,12 @@ Start the editor with a project loaded, then run the play mode tests in the Test
 ```
 
 The tests connect, check that every component the editor reports has an object under the root, that a property written through the API patches the cached values, that model stencils carry their geometry, and, while the editor's compositor runs a camera, that frames render and publish. Without an editor they are ignored rather than failed. The property test nudges a stage's bounds and puts them back.
+
+The edit mode test needs no editor:
+
+```bat
+"C:\Program Files\Unity\Hub\Editor\2022.3.62f3\Editor\Unity.exe" -batchmode -projectPath . -runTests -testPlatform EditMode -testResults TestResults.xml -logFile unity_tests.log
+```
 
 ## Stencils, knockout and shadows
 
