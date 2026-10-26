@@ -126,6 +126,87 @@ namespace MikanXR.Unity.Tests
 			}
 		}
 
+		// A property written through the API comes back to every client as an update event, which
+		// the data store applies to its cached values by wire field name. The stage's bounds are
+		// nudged and then put back.
+		[UnityTest]
+		public IEnumerator FollowsAPropertyUpdate()
+		{
+			yield return new WaitForSecondsRealtime(k_mirrorSettleSeconds);
+
+			var stages = _client.DataStore.GetComponents(MikanSystemNames.StageSystem);
+			if (stages.Count == 0)
+			{
+				Assert.Ignore("The editor's project has no stage");
+			}
+
+			int stageId = -1;
+			foreach (int id in stages.Keys)
+			{
+				stageId = id;
+				break;
+			}
+
+			MikanVector3f original = ((MikanStageComponentValues)stages[stageId]).stage_bounds_max;
+			var nudged = new MikanVector3f() { x = original.x, y = original.y + 0.01f, z = original.z };
+
+			bool applied = false;
+			yield return SetStageBoundsMax(stageId, nudged, () => applied = true);
+			Assert.That(applied, "the nudged stage bounds never reached the data store");
+
+			var patched = (MikanStageComponentValues)_client.DataStore.GetComponents(MikanSystemNames.StageSystem)[stageId];
+			Assert.That(patched.stage_bounds_max.y, Is.EqualTo(nudged.y).Within(1e-5f), "the data store holds the wrong value");
+
+			bool restored = false;
+			yield return SetStageBoundsMax(stageId, original, () => restored = true);
+			Assert.That(restored, "the original stage bounds never reached the data store");
+		}
+
+		// Sets the stage's stage_bounds_max and waits for the data store to report the change
+		private IEnumerator SetStageBoundsMax(int stageId, MikanVector3f value, System.Action onApplied)
+		{
+			bool changed = false;
+			System.Action<string, int, string, MikanComponentValues> onChanged = (systemName, componentId, fieldName, values) =>
+			{
+				if (systemName == MikanSystemNames.StageSystem && componentId == stageId && fieldName == "stage_bounds_max" &&
+					Mathf.Abs(((MikanStageComponentValues)values).stage_bounds_max.y - value.y) < 1e-5f)
+				{
+					changed = true;
+				}
+			};
+			_client.DataStore.ComponentChanged += onChanged;
+
+			MikanAPIResult result = MikanAPIResult.Uninitialized;
+			_client.SendRequest(
+				new PropertySetValueRequest()
+				{
+					ownerSystem = MikanSystemNames.StageSystem,
+					componentId = stageId,
+					fieldName = "stage_bounds_max",
+					fieldValue = new MikanVariant()
+					{
+						value_type = MikanVariantType.VECTOR3F_TYPE,
+						value_ptr = new PolymorphicObject(new MikanVector3fValue() { value = value })
+					}
+				},
+				response => result = response.resultCode);
+
+			float deadline = Time.realtimeSinceStartup + k_connectTimeoutSeconds;
+			while (!changed && Time.realtimeSinceStartup < deadline)
+			{
+				yield return null;
+			}
+
+			_client.DataStore.ComponentChanged -= onChanged;
+			Assert.That(result, Is.EqualTo(MikanAPIResult.Success).Or.EqualTo(MikanAPIResult.Uninitialized),
+				"the editor refused the property write");
+
+			if (changed)
+			{
+				onApplied();
+			}
+		}
+
 		[UnityTest]
 		public IEnumerator ModelStencilsCarryGeometry()
 		{

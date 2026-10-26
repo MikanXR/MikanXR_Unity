@@ -52,7 +52,7 @@ Start the editor with a project loaded, then run the play mode tests in the Test
 "C:\Program Files\Unity\Hub\Editor\2022.3.62f3\Editor\Unity.exe" -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults TestResults.xml -logFile unity_tests.log
 ```
 
-The tests connect, check that every component the editor reports has an object under the root, that model stencils carry their geometry, and, while the editor's compositor runs a camera, that frames render and publish. Without an editor they are ignored rather than failed.
+The tests connect, check that every component the editor reports has an object under the root, that a property written through the API patches the cached values, that model stencils carry their geometry, and, while the editor's compositor runs a camera, that frames render and publish. Without an editor they are ignored rather than failed. The property test nudges a stage's bounds and puts them back.
 
 ## Stencils, knockout and shadows
 

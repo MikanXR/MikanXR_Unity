@@ -444,7 +444,7 @@ namespace MikanXR.Unity
 					_pendingRequests.RemoveAt(index);
 					response = new MikanResponse()
 					{
-						responseTypeName = typeof(MikanResponse).Name,
+						responseTypeName = nameof(MikanResponse),
 						requestId = (int)MikanConstants.InvalidMikanID,
 						resultCode = MikanAPIResult.Timeout
 					};

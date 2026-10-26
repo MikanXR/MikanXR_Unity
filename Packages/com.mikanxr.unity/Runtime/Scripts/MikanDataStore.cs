@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace MikanXR.Unity
 {
@@ -15,20 +14,21 @@ namespace MikanXR.Unity
 		{
 			public string SystemName;
 			public string ComponentClass;
-			public Type ValuesType;
+			// The class the system's component values arrive as, by its wire name
+			public string ValuesClassName;
 		}
 
 		public static readonly SystemEntry[] MirroredSystems = new SystemEntry[]
 		{
-			new SystemEntry() { SystemName = MikanSystemNames.SceneSystem, ComponentClass = MikanSystemNames.SceneComponent, ValuesType = typeof(MikanSceneComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.StageSystem, ComponentClass = MikanSystemNames.StageComponent, ValuesType = typeof(MikanStageComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.AnchorSystem, ComponentClass = MikanSystemNames.AnchorComponent, ValuesType = typeof(MikanAnchorComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.QuadStencilSystem, ComponentClass = MikanSystemNames.QuadStencilComponent, ValuesType = typeof(MikanQuadStencilComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.BoxStencilSystem, ComponentClass = MikanSystemNames.BoxStencilComponent, ValuesType = typeof(MikanBoxStencilComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.ModelStencilSystem, ComponentClass = MikanSystemNames.ModelStencilComponent, ValuesType = typeof(MikanModelStencilComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.CameraSystem, ComponentClass = MikanSystemNames.CameraComponent, ValuesType = typeof(MikanCameraComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.LightEnvironmentSystem, ComponentClass = MikanSystemNames.LightEnvironmentComponent, ValuesType = typeof(MikanLightEnvironmentComponentValues) },
-			new SystemEntry() { SystemName = MikanSystemNames.RGBSpotLightSystem, ComponentClass = MikanSystemNames.RGBSpotLightComponent, ValuesType = typeof(MikanRGBSpotLightComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.SceneSystem, ComponentClass = MikanSystemNames.SceneComponent, ValuesClassName = nameof(MikanSceneComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.StageSystem, ComponentClass = MikanSystemNames.StageComponent, ValuesClassName = nameof(MikanStageComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.AnchorSystem, ComponentClass = MikanSystemNames.AnchorComponent, ValuesClassName = nameof(MikanAnchorComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.QuadStencilSystem, ComponentClass = MikanSystemNames.QuadStencilComponent, ValuesClassName = nameof(MikanQuadStencilComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.BoxStencilSystem, ComponentClass = MikanSystemNames.BoxStencilComponent, ValuesClassName = nameof(MikanBoxStencilComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.ModelStencilSystem, ComponentClass = MikanSystemNames.ModelStencilComponent, ValuesClassName = nameof(MikanModelStencilComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.CameraSystem, ComponentClass = MikanSystemNames.CameraComponent, ValuesClassName = nameof(MikanCameraComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.LightEnvironmentSystem, ComponentClass = MikanSystemNames.LightEnvironmentComponent, ValuesClassName = nameof(MikanLightEnvironmentComponentValues) },
+			new SystemEntry() { SystemName = MikanSystemNames.RGBSpotLightSystem, ComponentClass = MikanSystemNames.RGBSpotLightComponent, ValuesClassName = nameof(MikanRGBSpotLightComponentValues) },
 		};
 
 		private readonly MikanClient _client;
@@ -163,10 +163,10 @@ namespace MikanXR.Unity
 					}
 
 					if (!(valuesResponse.valuesObject?.Instance is MikanComponentValues values) ||
-						!entry.ValuesType.IsInstanceOfType(values))
+						values.RuntimeClassName != entry.ValuesClassName)
 					{
 						_client.Log(MikanLogLevel.Warning,
-							$"MikanDataStore: {entry.ComponentClass} {componentId} answered {valuesResponse.componentClassName}, expected {entry.ValuesType.Name}");
+							$"MikanDataStore: {entry.ComponentClass} {componentId} answered {valuesResponse.componentClassName}, expected {entry.ValuesClassName}");
 						return;
 					}
 
@@ -250,80 +250,25 @@ namespace MikanXR.Unity
 		}
 
 		// The generated values classes name their fields as the wire does, so a property update's
-		// field name is the field to patch. The variant carries its payload as a typed wrapper
-		// whose single field is called value.
+		// field name is the field to patch, and their TrySetField converts the variant's value to
+		// the field's type
 		private static bool ApplyVariantToField(MikanComponentValues values, string fieldName, MikanVariant variant)
 		{
-			if (string.IsNullOrEmpty(fieldName))
+			if (string.IsNullOrEmpty(fieldName) || !TryGetVariantValue(variant, out object value))
 			{
 				return false;
 			}
 
-			FieldInfo field = values.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
-			if (field == null)
-			{
-				return false;
-			}
-
-			if (!TryGetVariantValue(variant, out object value))
-			{
-				return false;
-			}
-
-			Type fieldType = field.FieldType;
-
-			if (value == null)
-			{
-				if (!fieldType.IsValueType)
-				{
-					field.SetValue(values, null);
-					return true;
-				}
-
-				return false;
-			}
-
-			if (fieldType.IsInstanceOfType(value))
-			{
-				field.SetValue(values, value);
-				return true;
-			}
-
-			if (fieldType.IsEnum && value is int enumValue)
-			{
-				field.SetValue(values, Enum.ToObject(fieldType, enumValue));
-				return true;
-			}
-
-			try
-			{
-				field.SetValue(values, Convert.ChangeType(value, fieldType));
-				return true;
-			}
-			catch (Exception)
-			{
-				return false;
-			}
+			return values.TrySetField(fieldName, value);
 		}
 
+		// The variant carries its payload as a typed wrapper whose single field is called value
 		private static bool TryGetVariantValue(MikanVariant variant, out object value)
 		{
 			value = null;
 
-			object wrapper = variant?.value_ptr?.Instance;
-			if (wrapper == null)
-			{
-				return false;
-			}
-
-			FieldInfo valueField = wrapper.GetType().GetField("value", BindingFlags.Public | BindingFlags.Instance);
-			if (valueField == null)
-			{
-				return false;
-			}
-
-			value = valueField.GetValue(wrapper);
-			return true;
+			PolymorphicStruct wrapper = variant?.value_ptr?.Instance;
+			return wrapper != null && wrapper.TryGetField("value", out value);
 		}
 	}
 }
