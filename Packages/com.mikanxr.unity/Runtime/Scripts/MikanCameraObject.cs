@@ -391,29 +391,59 @@ namespace MikanXR.Unity
 					renderStencils && stencil.IsFacingCamera(cameraPosition, cameraForward));
 			}
 
-			_camera.Render();
-
-			if (_shadowTexture != null)
+			// The camera's own light capture lights this render alone, undone even when a render
+			// throws, since the host's view would otherwise keep the change
+			MikanLightEnvironmentObject lightEnvironment = FindLightEnvironment();
+			bool lit = lightEnvironment != null && lightEnvironment.BeginRender();
+			try
 			{
-				RenderShadowPass();
+				_camera.Render();
+
+				if (_shadowTexture != null)
+				{
+					RenderShadowPass();
+				}
+			}
+			finally
+			{
+				if (lit)
+				{
+					lightEnvironment.EndRender();
+				}
+
+				foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
+				{
+					stencil.EndPass();
+				}
+
+				foreach (MikanTransformObject mikanObject in Client.SceneMirror.Objects.Values)
+				{
+					mikanObject.RestoreHelpers();
+				}
 			}
 
 			Client.RenderTargetWriter.StageRawBuffers(ComponentId);
-
-			foreach (MikanStencilObject stencil in Client.SceneMirror.FindAll<MikanStencilObject>())
-			{
-				stencil.EndPass();
-			}
-
-			foreach (MikanTransformObject mikanObject in Client.SceneMirror.Objects.Values)
-			{
-				mikanObject.RestoreHelpers();
-			}
 
 			_lastRenderTime = Time.unscaledTime;
 			++_renderCount;
 
 			Client.FramePublisher.QueuePublish(ComponentId, frameIndex);
+		}
+
+		// The light capture taken through this camera, which the editor parents to it. With more
+		// than one the lowest component id wins, and a camera without one renders under the host's
+		// own lighting rather than another camera's, which may be another room.
+		private MikanLightEnvironmentObject FindLightEnvironment()
+		{
+			MikanLightEnvironmentObject found = null;
+			foreach (MikanLightEnvironmentObject lightEnvironment in GetComponentsInChildren<MikanLightEnvironmentObject>())
+			{
+				if (found == null || lightEnvironment.ComponentId < found.ComponentId)
+				{
+					found = lightEnvironment;
+				}
+			}
+			return found;
 		}
 
 		private void RenderShadowPass()

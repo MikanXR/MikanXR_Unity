@@ -5,22 +5,24 @@ using UnityEngine.Rendering;
 namespace MikanXR.Unity
 {
 	// The editor's captured lighting probe: an order-2 spherical harmonic radiance environment
-	// plus a key light direction, both in the capturing camera's stage space. It becomes the
-	// scene's ambient probe and a directional key light. One probe drives both at a time, the one
-	// with the lowest component id: the ambient is global, and a key light per probe would spend
-	// the forward renderer's per-pixel light slots on directional lights and leave none for the
-	// spot lights.
+	// plus a key light direction, both in the capturing camera's stage space. The capture
+	// belongs to the camera it sits under and lights only that camera's renders: the camera
+	// brackets each render with BeginRender and EndRender, which make the probe the scene's
+	// ambient and turn the directional key light on, then put the host's ambient back and the
+	// key light off. The host's own views keep the host's lighting, a host that rewrites its
+	// ambient every frame (Warudo) cannot undo it, and one key light at a time leaves the
+	// forward renderer's per-pixel light slots to the spot lights.
 	public class MikanLightEnvironmentObject : MikanTransformObject
 	{
 		// Below this the recovered direction is noise and the key light stays off
 		private const float k_keyLightDirectionalityThreshold = 0.25f;
 
-		private static MikanLightEnvironmentObject s_ambientDriver;
-
 		private Light _keyLight;
+		private SphericalHarmonicsL2 _probe;
 		private bool _probeDirty = true;
-		private Quaternion _appliedStageRotation = Quaternion.identity;
-		private float _appliedIntensityScale = -1f;
+		private Quaternion _probeStageRotation = Quaternion.identity;
+		private float _probeIntensityScale = -1f;
+		private bool _rendering;
 
 		public MikanLightEnvironmentComponentValues EnvironmentValues => TransformValues as MikanLightEnvironmentComponentValues;
 
@@ -39,17 +41,6 @@ namespace MikanXR.Unity
 			_probeDirty = true;
 		}
 
-		public override void Unbind()
-		{
-			ReleaseAmbient();
-			base.Unbind();
-		}
-
-		private void OnDestroy()
-		{
-			ReleaseAmbient();
-		}
-
 		public override void OnValuesChanged(string fieldName)
 		{
 			base.OnValuesChanged(fieldName);
@@ -58,8 +49,6 @@ namespace MikanXR.Unity
 			{
 			case "sh_coefficients":
 			case "exposure_scale":
-			case "directionality":
-			case "key_light_direction":
 				_probeDirty = true;
 				break;
 			}
@@ -70,11 +59,14 @@ namespace MikanXR.Unity
 			_probeDirty = true;
 		}
 
-		private void LateUpdate()
+		// Lights the scene for one render of the camera this capture belongs to. Answers false,
+		// with nothing changed, while the client does not apply light environments.
+		public bool BeginRender()
 		{
-			if (!IsBound)
+			MikanLightEnvironmentComponentValues values = EnvironmentValues;
+			if (!IsBound || values == null || !Client.ApplyLightEnvironment || _rendering)
 			{
-				return;
+				return false;
 			}
 
 			// The coefficients and the direction are in the stage's space, so the stage's world
@@ -82,36 +74,39 @@ namespace MikanXR.Unity
 			MikanStageObject stage = GetComponentInParent<MikanStageObject>();
 			Quaternion stageRotation = stage != null ? stage.transform.rotation : transform.rotation;
 
-			bool apply = Client.ApplyLightEnvironment;
-			if (!apply)
+			if (_probeDirty ||
+				Quaternion.Angle(stageRotation, _probeStageRotation) > 0.01f ||
+				!Mathf.Approximately(Client.LightIntensityScale, _probeIntensityScale))
 			{
-				UpdateKeyLight(false, stageRotation);
-				ReleaseAmbient();
+				_probe = MikanAmbientProbe.Project(
+					values.sh_coefficients, values.exposure_scale * Client.LightIntensityScale, stageRotation);
+				_probeDirty = false;
+				_probeStageRotation = stageRotation;
+				_probeIntensityScale = Client.LightIntensityScale;
+			}
+
+			MikanAmbientProbe.BeginOverride(_probe);
+			UpdateKeyLight(stageRotation);
+			_rendering = true;
+			return true;
+		}
+
+		public void EndRender()
+		{
+			if (!_rendering)
+			{
 				return;
 			}
 
-			bool drives = s_ambientDriver == null || s_ambientDriver == this || s_ambientDriver.ComponentId > ComponentId;
-			if (drives && s_ambientDriver != this)
+			_rendering = false;
+			if (_keyLight != null)
 			{
-				s_ambientDriver = this;
-				_probeDirty = true;
+				_keyLight.enabled = false;
 			}
-
-			UpdateKeyLight(drives, stageRotation);
-
-			if (drives)
-			{
-				bool changed = _probeDirty ||
-					Quaternion.Angle(stageRotation, _appliedStageRotation) > 0.01f ||
-					!Mathf.Approximately(Client.LightIntensityScale, _appliedIntensityScale);
-				if (changed)
-				{
-					ApplyAmbient(stageRotation);
-				}
-			}
+			MikanAmbientProbe.EndOverride();
 		}
 
-		private void UpdateKeyLight(bool apply, Quaternion stageRotation)
+		private void UpdateKeyLight(Quaternion stageRotation)
 		{
 			MikanLightEnvironmentComponentValues values = EnvironmentValues;
 			if (_keyLight == null || values == null)
@@ -122,7 +117,7 @@ namespace MikanXR.Unity
 			Vector3 keyDirection = values.key_light_direction != null
 				? MikanMath.ToUnityDirection(values.key_light_direction)
 				: Vector3.zero;
-			bool show = apply && values.directionality >= k_keyLightDirectionalityThreshold && keyDirection.sqrMagnitude > 1e-6f;
+			bool show = values.directionality >= k_keyLightDirectionalityThreshold && keyDirection.sqrMagnitude > 1e-6f;
 			_keyLight.enabled = show;
 			if (!show)
 			{
@@ -134,35 +129,10 @@ namespace MikanXR.Unity
 			_keyLight.transform.rotation = Quaternion.LookRotation(-worldDirection);
 			_keyLight.intensity = Client.LightIntensityScale;
 		}
-
-		private void ApplyAmbient(Quaternion stageRotation)
-		{
-			MikanLightEnvironmentComponentValues values = EnvironmentValues;
-			if (values == null)
-			{
-				return;
-			}
-
-			MikanAmbientProbe.Apply(MikanAmbientProbe.Project(
-				values.sh_coefficients, values.exposure_scale * Client.LightIntensityScale, stageRotation));
-
-			_probeDirty = false;
-			_appliedStageRotation = stageRotation;
-			_appliedIntensityScale = Client.LightIntensityScale;
-		}
-
-		private void ReleaseAmbient()
-		{
-			if (s_ambientDriver == this)
-			{
-				s_ambientDriver = null;
-				MikanAmbientProbe.Restore();
-			}
-		}
 	}
 
-	// The scene's ambient probe while a Mikan light environment drives it, with what the scene
-	// had before kept for when it stops
+	// The scene's ambient probe for the length of one Mikan render, with what the scene had
+	// before put back after it
 	public static class MikanAmbientProbe
 	{
 		// Enough directions that a clamped order-2 environment projects back without visible error
@@ -178,30 +148,30 @@ namespace MikanXR.Unity
 			0.273137f, 0.273137f, 0.078848f, 0.273137f, 0.136569f,
 		};
 
-		private static bool s_saved;
+		private static bool s_overriding;
 		private static AmbientMode s_savedMode;
 		private static SphericalHarmonicsL2 s_savedProbe;
 
-		public static void Apply(SphericalHarmonicsL2 probe)
+		public static void BeginOverride(SphericalHarmonicsL2 probe)
 		{
-			if (!s_saved)
+			if (!s_overriding)
 			{
 				s_savedMode = RenderSettings.ambientMode;
 				s_savedProbe = RenderSettings.ambientProbe;
-				s_saved = true;
+				s_overriding = true;
 			}
 
 			RenderSettings.ambientMode = AmbientMode.Custom;
 			RenderSettings.ambientProbe = probe;
 		}
 
-		public static void Restore()
+		public static void EndOverride()
 		{
-			if (s_saved)
+			if (s_overriding)
 			{
 				RenderSettings.ambientMode = s_savedMode;
 				RenderSettings.ambientProbe = s_savedProbe;
-				s_saved = false;
+				s_overriding = false;
 			}
 		}
 
