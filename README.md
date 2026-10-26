@@ -50,9 +50,10 @@ A host that loads the client as a plugin rather than building it into a project 
 - a settings store, through `MikanClient.SettingsProvider` (an `IMikanSettingsProvider`)
 - the package's shaders and assets, which its build never saw, through `MikanShaderLibrary.SetBundle` for an AssetBundle or `MikanShaderLibrary.SetAssetSource` for any other `IMikanAssetSource`, which is handed the package's Resources-relative paths
 
-One more hook is optional:
+Two more hooks are optional:
 
 - `MikanClient.SetRenderCullingMask` names the layers the Mikan cameras render, for a host with its own layer scheme. The default is every layer but UI.
+- `MikanSceneAnnouncer` raises `SceneAnnounced` with the editor's current scene id and name, once the scene's values have arrived, for a host that reacts per scene.
 
 A sandboxed host that forbids `System.IO`, `System.Reflection` and P/Invoke, such as a Warudo plugin mod, compiles `Runtime/` from source without two folders:
 
