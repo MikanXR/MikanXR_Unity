@@ -3,10 +3,52 @@ using UnityEngine;
 
 namespace MikanXR.Unity
 {
+	// Where a host keeps the package's shaders and assets when they are not in the build's own
+	// Resources. Paths are the package's Resources-relative ones ("MikanXR/MikanSpoutResources"),
+	// so each host maps them to its own storage: an AssetBundle, a mod's asset loader.
+	public interface IMikanAssetSource
+	{
+		// The shader with this shader name ("MikanXR/PackDepthRGBA"), or null
+		Shader FindShader(string shaderName);
+
+		// The asset at this Resources-relative path, or null
+		T LoadAsset<T>(string resourcesPath) where T : Object;
+	}
+
+	// Shaders and assets from an AssetBundle, found by shader name and by asset file name
+	public class MikanBundleAssetSource : IMikanAssetSource
+	{
+		private readonly AssetBundle _bundle;
+		private readonly Dictionary<string, Shader> _shaders = new Dictionary<string, Shader>();
+
+		public MikanBundleAssetSource(AssetBundle bundle)
+		{
+			_bundle = bundle;
+
+			foreach (Shader shader in bundle.LoadAllAssets<Shader>())
+			{
+				_shaders[shader.name] = shader;
+			}
+		}
+
+		public AssetBundle Bundle => _bundle;
+
+		public Shader FindShader(string shaderName)
+		{
+			return _shaders.TryGetValue(shaderName, out Shader shader) ? shader : null;
+		}
+
+		public T LoadAsset<T>(string resourcesPath) where T : Object
+		{
+			string assetName = resourcesPath.Substring(resourcesPath.LastIndexOf('/') + 1);
+			return _bundle.LoadAsset<T>(assetName);
+		}
+	}
+
 	// Where the client's shaders come from. The package keeps them in a Resources folder, which a
 	// player build of a project that includes the package carries whether or not a scene references
-	// them. In a host that loads the client as a plugin they arrive in an AssetBundle the host hands
-	// over, since that host's build never saw them.
+	// them. A host that loads the client as a plugin never built them, so it installs a source that
+	// reaches them: an AssetBundle through SetBundle, or its own source through SetAssetSource.
 	public static class MikanShaderLibrary
 	{
 		public const string PackDepthRGBA = "MikanXR/PackDepthRGBA";
@@ -20,35 +62,31 @@ namespace MikanXR.Unity
 
 		private const string k_resourcesFolder = "MikanXR/Shaders/";
 
-		private static AssetBundle s_bundle;
-		private static readonly Dictionary<string, Shader> s_bundleShaders = new Dictionary<string, Shader>();
+		private static IMikanAssetSource s_assetSource;
+
+		public static void SetAssetSource(IMikanAssetSource assetSource)
+		{
+			s_assetSource = assetSource;
+		}
+
+		public static IMikanAssetSource AssetSource => s_assetSource;
 
 		public static void SetBundle(AssetBundle bundle)
 		{
-			s_bundle = bundle;
-			s_bundleShaders.Clear();
-
-			if (bundle != null)
-			{
-				foreach (Shader shader in bundle.LoadAllAssets<Shader>())
-				{
-					s_bundleShaders[shader.name] = shader;
-				}
-			}
+			SetAssetSource(bundle != null ? new MikanBundleAssetSource(bundle) : null);
 		}
 
-		public static AssetBundle Bundle => s_bundle;
+		public static AssetBundle Bundle => (s_assetSource as MikanBundleAssetSource)?.Bundle;
 
-		// A non-shader asset of the package: from the bundle when one is loaded, else Resources
+		// A non-shader asset of the package: from the host's source when it has one, else Resources
 		public static T LoadAsset<T>(string resourcesPath) where T : Object
 		{
-			if (s_bundle != null)
+			if (s_assetSource != null)
 			{
-				string assetName = System.IO.Path.GetFileName(resourcesPath);
-				T fromBundle = s_bundle.LoadAsset<T>(assetName);
-				if (fromBundle != null)
+				T fromSource = s_assetSource.LoadAsset<T>(resourcesPath);
+				if (fromSource != null)
 				{
-					return fromBundle;
+					return fromSource;
 				}
 			}
 
@@ -57,12 +95,13 @@ namespace MikanXR.Unity
 
 		public static Shader Find(string shaderName)
 		{
-			if (s_bundleShaders.TryGetValue(shaderName, out Shader bundled) && bundled != null)
+			Shader shader = s_assetSource?.FindShader(shaderName);
+			if (shader != null)
 			{
-				return bundled;
+				return shader;
 			}
 
-			Shader shader = Shader.Find(shaderName);
+			shader = Shader.Find(shaderName);
 			if (shader != null)
 			{
 				return shader;
