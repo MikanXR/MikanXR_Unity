@@ -13,8 +13,12 @@ namespace MikanXR.Unity
 	// Requests are answered on the transport's receive thread, so this never attaches a
 	// continuation to a future: it keeps the pending futures in a list and polls them from Update,
 	// which is where every callback runs.
+	//
+	// The JSON file settings default lives in Scripts/FileSystem, which a host that forbids
+	// System.IO leaves out. Without it the default is no persistence, and the host installs
+	// its own provider.
 	[DisallowMultipleComponent]
-	public class MikanClient : MonoBehaviour
+	public partial class MikanClient : MonoBehaviour
 	{
 		[Header("Connection")]
 		[Tooltip("The id the editor knows this client by, and the prefix of its Spout sender names. A compositor's client texture source names it, so keep it stable.")]
@@ -222,6 +226,9 @@ namespace MikanXR.Unity
 			set { _settingsProvider = value; }
 		}
 
+		// Implemented in Scripts/FileSystem. A host that leaves that folder out compiles the call away.
+		static partial void CreateDefaultSettingsProvider(ref IMikanSettingsProvider provider);
+
 		private void Awake()
 		{
 			_settings.host = _host;
@@ -240,7 +247,7 @@ namespace MikanXR.Unity
 
 			if (_settingsProvider == null && _persistSettingsToJson)
 			{
-				_settingsProvider = new MikanJsonFileSettingsProvider();
+				CreateDefaultSettingsProvider(ref _settingsProvider);
 			}
 
 			if (_settingsProvider != null && _settingsProvider.Load(_settings) && _settings.applyRootTransform)
