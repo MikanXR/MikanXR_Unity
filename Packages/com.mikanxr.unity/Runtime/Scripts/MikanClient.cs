@@ -215,6 +215,22 @@ namespace MikanXR.Unity
 		public event Action<MikanEvent> EventReceived;
 		public event Action<MikanLogLevel, string> LogMessage;
 
+		// Raised around each Mikan camera's renders (the color pass and the shadow pass) inside
+		// the frame, for a host to change something of its own for those renders alone, such as
+		// hiding a light of its own. Finished is raised even when a render throws.
+		public event Action<MikanCameraObject> CameraRenderStarting;
+		public event Action<MikanCameraObject> CameraRenderFinished;
+
+		internal void NotifyCameraRenderStarting(MikanCameraObject camera)
+		{
+			CameraRenderStarting?.Invoke(camera);
+		}
+
+		internal void NotifyCameraRenderFinished(MikanCameraObject camera)
+		{
+			CameraRenderFinished?.Invoke(camera);
+		}
+
 		// What the Mikan cameras render: every layer but Unity's UI layer. The helpers and the
 		// stencils hide themselves around each Mikan render instead of living on a layer of their
 		// own, since a host may not render the spare layers.

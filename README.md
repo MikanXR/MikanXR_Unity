@@ -53,6 +53,7 @@ A host that loads the client as a plugin rather than building it into a project 
 Two more hooks are optional:
 
 - `MikanClient.SetRenderCullingMask` names the layers the Mikan cameras render, for a host with its own layer scheme. The default is every layer but UI.
+- `MikanClient.CameraRenderStarting` and `CameraRenderFinished` bracket each Mikan camera's renders inside the frame, for a host that changes something of its own for those renders alone, such as hiding its own lights.
 - `MikanSceneAnnouncer` raises `SceneAnnounced` with the editor's current scene id and name, once the scene's values have arrived, for a host that reacts per scene.
 
 A sandboxed host that forbids `System.IO`, `System.Reflection` and P/Invoke, such as a Warudo plugin mod, compiles `Runtime/` from source without two folders:

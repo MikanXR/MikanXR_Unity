@@ -391,10 +391,12 @@ namespace MikanXR.Unity
 					renderStencils && stencil.IsFacingCamera(cameraPosition, cameraForward));
 			}
 
-			// The camera's own light capture lights this render alone, undone even when a render
-			// throws, since the host's view would otherwise keep the change
+			// The camera's own light capture lights this render alone, and the host gets its say
+			// for anything of its own to change around it. Both are undone even when a render
+			// throws, since the host's view would otherwise keep the change.
 			MikanLightEnvironmentObject lightEnvironment = FindLightEnvironment();
 			bool lit = lightEnvironment != null && lightEnvironment.BeginRender();
+			Client.NotifyCameraRenderStarting(this);
 			try
 			{
 				_camera.Render();
@@ -406,6 +408,7 @@ namespace MikanXR.Unity
 			}
 			finally
 			{
+				Client.NotifyCameraRenderFinished(this);
 				if (lit)
 				{
 					lightEnvironment.EndRender();
