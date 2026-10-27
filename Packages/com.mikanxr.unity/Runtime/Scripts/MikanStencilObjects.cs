@@ -234,6 +234,27 @@ namespace MikanXR.Unity
 			return s_previewMaterials[slot];
 		}
 
+		// The preview and pass materials are shared by every stencil and last as long as the
+		// client, so a host that restarts the client under another render pipeline gets
+		// materials built from that pipeline's shaders
+		internal static void ReleaseSharedMaterials()
+		{
+			ReleaseMaterials(s_previewMaterials);
+			ReleaseMaterials(s_passMaterials);
+		}
+
+		private static void ReleaseMaterials(Material[] materials)
+		{
+			for (int slot = 0; slot < materials.Length; ++slot)
+			{
+				if (materials[slot] != null)
+				{
+					Destroy(materials[slot]);
+					materials[slot] = null;
+				}
+			}
+		}
+
 		private static Material GetPassMaterial(MikanStencilPass pass, bool doubleSided)
 		{
 			int slot = (int)pass * 2 + (doubleSided ? 1 : 0);

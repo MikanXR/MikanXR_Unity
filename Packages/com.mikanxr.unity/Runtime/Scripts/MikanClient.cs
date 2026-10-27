@@ -339,6 +339,7 @@ namespace MikanXR.Unity
 
 			_sceneMirror?.Clear();
 			_dataStore?.Clear();
+			MikanStencilObject.ReleaseSharedMaterials();
 
 			if (_api.GetIsConnected())
 			{
