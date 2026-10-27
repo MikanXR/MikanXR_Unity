@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace MikanXR.Unity
 {
@@ -35,7 +34,7 @@ namespace MikanXR.Unity
 		private RenderTexture _unshadowedTexture;
 		private Material _packDepthMaterial;
 		private Material _shadowDivideMaterial;
-		private CommandBuffer _packDepthCommands;
+		private IMikanRenderPath _renderPath;
 
 		// The last camera state the editor sent
 		private bool _hasState = false;
@@ -125,10 +124,10 @@ namespace MikanXR.Unity
 			base.Bind(client, systemName, componentId, values);
 
 			_camera = CreateRenderCamera("Render Camera", new Color(0f, 0f, 0f, 0f));
-			_camera.depthTextureMode = DepthTextureMode.Depth;
-
 			_shadowCamera = CreateRenderCamera("Shadow Camera", Color.white);
-			_shadowCamera.depthTextureMode = DepthTextureMode.Depth;
+			_renderPath = client.RenderPath;
+			_renderPath.Attach(this);
+
 			_shadowDivideMaterial = MikanShaderLibrary.CreateMaterial(MikanShaderLibrary.ShadowDivide);
 			if (_shadowDivideMaterial == null)
 			{
@@ -192,6 +191,8 @@ namespace MikanXR.Unity
 
 			_allocated = false;
 			ReleaseTextures();
+			_renderPath?.Detach(this);
+			_renderPath = null;
 
 			if (_packDepthMaterial != null)
 			{
@@ -367,6 +368,17 @@ namespace MikanXR.Unity
 				return;
 			}
 
+			_renderPath.RequestRender(this, frameIndex);
+		}
+
+		// Renders and publishes one frame, when the render path allows it
+		public void RenderNow(long frameIndex)
+		{
+			if (!IsBound || !_allocated)
+			{
+				return;
+			}
+
 			if (_packDepthMaterial != null)
 			{
 				_packDepthMaterial.SetFloat("_MikanZNear", _zBounds.x);
@@ -399,7 +411,7 @@ namespace MikanXR.Unity
 			Client.NotifyCameraRenderStarting(this);
 			try
 			{
-				_camera.Render();
+				_renderPath.RenderCamera(_camera);
 
 				if (_shadowTexture != null)
 				{
@@ -457,14 +469,11 @@ namespace MikanXR.Unity
 			}
 
 			_shadowCamera.targetTexture = _shadowedTexture;
-			_shadowCamera.Render();
+			_renderPath.RenderCamera(_shadowCamera);
 
-			// The same frame without shadows, through the one global switch, restored at once
-			ShadowQuality shadowQuality = QualitySettings.shadows;
-			QualitySettings.shadows = ShadowQuality.Disable;
+			// The same frame without shadows
 			_shadowCamera.targetTexture = _unshadowedTexture;
-			_shadowCamera.Render();
-			QualitySettings.shadows = shadowQuality;
+			_renderPath.RenderUnshadowed(_shadowCamera);
 
 			_shadowDivideMaterial.SetTexture("_MikanReferenceTex", _unshadowedTexture);
 			Graphics.Blit(_shadowedTexture, _shadowTexture, _shadowDivideMaterial);
@@ -512,15 +521,7 @@ namespace MikanXR.Unity
 
 			_camera.targetTexture = _colorTexture;
 
-			// The depth pack runs inside the camera's render, where the camera depth texture is
-			// the one this camera produced, and that texture is only rendered while it is wanted
-			_camera.depthTextureMode = wantsDepth ? DepthTextureMode.Depth : DepthTextureMode.None;
-			if (wantsDepth)
-			{
-				_packDepthCommands = new CommandBuffer() { name = "MikanXR pack depth" };
-				_packDepthCommands.Blit(BuiltinRenderTextureType.None, _depthTexture, _packDepthMaterial);
-				_camera.AddCommandBuffer(CameraEvent.AfterEverything, _packDepthCommands);
-			}
+			_renderPath.SetDepthPack(_camera, _depthTexture, _packDepthMaterial);
 
 			Client.RenderTargetWriter.SetTextures(ComponentId, _colorTexture, _depthTexture, _shadowTexture);
 		}
@@ -543,11 +544,7 @@ namespace MikanXR.Unity
 		{
 			if (_camera != null)
 			{
-				if (_packDepthCommands != null)
-				{
-					_camera.RemoveCommandBuffer(CameraEvent.AfterEverything, _packDepthCommands);
-				}
-
+				_renderPath?.SetDepthPack(_camera, null, null);
 				_camera.targetTexture = null;
 			}
 
@@ -556,8 +553,6 @@ namespace MikanXR.Unity
 				_shadowCamera.targetTexture = null;
 			}
 
-			_packDepthCommands?.Release();
-			_packDepthCommands = null;
 
 			ReleaseTexture(ref _colorTexture);
 			ReleaseTexture(ref _depthTexture);

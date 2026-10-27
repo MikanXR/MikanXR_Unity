@@ -62,6 +62,7 @@ namespace MikanXR.Unity
 		private const int k_uiLayer = 5;
 
 		private int _renderCullingMask = ~(1 << k_uiLayer);
+		private IMikanRenderPath _renderPath = new MikanBuiltinRenderPath();
 
 		private class PendingRequest
 		{
@@ -241,6 +242,16 @@ namespace MikanXR.Unity
 		public void SetRenderCullingMask(int mask)
 		{
 			_renderCullingMask = mask;
+		}
+
+		// How the Mikan cameras render under the host's render pipeline: the built-in pipeline's
+		// path unless the host installs another. A camera keeps the path it was bound with, so a
+		// host sets this before the client starts.
+		public IMikanRenderPath RenderPath => _renderPath;
+
+		public void SetRenderPath(IMikanRenderPath renderPath)
+		{
+			_renderPath = renderPath ?? new MikanBuiltinRenderPath();
 		}
 
 		// A host installs its store before the client awakes (create the object inactive, set this,
