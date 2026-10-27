@@ -23,6 +23,7 @@ namespace MikanXR.Unity
 		private Quaternion _probeStageRotation = Quaternion.identity;
 		private float _probeIntensityScale = -1f;
 		private bool _rendering;
+		private Light _savedSun;
 
 		public MikanLightEnvironmentComponentValues EnvironmentValues => TransformValues as MikanLightEnvironmentComponentValues;
 
@@ -87,6 +88,15 @@ namespace MikanXR.Unity
 
 			MikanAmbientProbe.BeginOverride(_probe);
 			UpdateKeyLight(stageRotation);
+
+			// A scriptable pipeline casts shadows from one directional light, the scene's sun, so
+			// the key light takes that place for the render beside any directional light of the host
+			_savedSun = RenderSettings.sun;
+			if (_keyLight != null && _keyLight.enabled)
+			{
+				RenderSettings.sun = _keyLight;
+			}
+
 			_rendering = true;
 			return true;
 		}
@@ -99,6 +109,8 @@ namespace MikanXR.Unity
 			}
 
 			_rendering = false;
+			RenderSettings.sun = _savedSun;
+			_savedSun = null;
 			if (_keyLight != null)
 			{
 				_keyLight.enabled = false;
