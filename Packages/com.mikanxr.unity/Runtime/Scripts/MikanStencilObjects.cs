@@ -28,11 +28,14 @@ namespace MikanXR.Unity
 		private MaterialPropertyBlock _previewProperties;
 		private Texture2D _previewTexture;
 		private bool _inPass;
+		private bool _visibleInPass;
 
 		public MikanStencilComponentValues StencilValues => TransformValues as MikanStencilComponentValues;
 		public MeshRenderer MeshRenderer => _meshRenderer;
 		public bool IsDisabled => StencilValues != null && StencilValues.is_disabled;
 		protected virtual bool IsDoubleSided => false;
+		// Whether the stencil draws in the holdout pass. The shadow catcher pass is unaffected.
+		protected virtual bool RendersHoldout => true;
 
 		public override void Bind(MikanClient client, string systemName, int componentId, MikanComponentValues values)
 		{
@@ -61,7 +64,7 @@ namespace MikanXR.Unity
 		{
 			base.OnValuesChanged(fieldName);
 
-			if (fieldName == "is_disabled")
+			if (fieldName == "is_disabled" || fieldName == "client_holdout")
 			{
 				RefreshHostView();
 			}
@@ -111,17 +114,20 @@ namespace MikanXR.Unity
 			}
 
 			_inPass = true;
-			_meshRenderer.enabled = visibleForCamera && !IsDisabled;
+			_visibleInPass = visibleForCamera && !IsDisabled;
 			SetPass(pass);
 		}
 
-		// The camera's next pass, keeping the visibility BeginPass decided
+		// The camera's next pass, keeping the visibility BeginPass decided. A stencil that skips the
+		// holdout pass is hidden for it and still shows for the shadow catcher pass.
 		public void SetPass(MikanStencilPass pass)
 		{
 			if (_meshRenderer == null || !_inPass)
 			{
 				return;
 			}
+
+			_meshRenderer.enabled = _visibleInPass && (pass != MikanStencilPass.Holdout || RendersHoldout);
 
 			Material material = GetPassMaterial(pass, IsDoubleSided);
 			if (material != null)
@@ -431,6 +437,12 @@ namespace MikanXR.Unity
 
 		public MikanModelStencilComponentValues ModelValues => TransformValues as MikanModelStencilComponentValues;
 		public Texture2D Texture => _texture;
+
+		// When false the client skips this stencil's holdout pass and the editor's compositor decides
+		// occlusion per pixel from the client's unoccluded color and depth
+		public bool ClientHoldout => ModelValues == null || ModelValues.client_holdout;
+
+		protected override bool RendersHoldout => ClientHoldout;
 
 		protected override bool IsGeometryField(string fieldName)
 		{
