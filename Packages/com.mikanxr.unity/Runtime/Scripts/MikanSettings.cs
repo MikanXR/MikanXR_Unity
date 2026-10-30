@@ -36,7 +36,8 @@ namespace MikanXR.Unity
 		// The shadow buffer needs stencils to catch on, so it is only published while both are on
 		public bool renderShadows = true;
 		// The packed depth buffer is off by default: the stencil knockout already cuts the character
-		// out behind real geometry, so depth is only for a compositor that keys on it
+		// out behind real geometry, so depth is only for a compositor that keys on it. With a stencil's
+		// client_holdout off the editor needs the published depth to decide occlusion, so turn it on then.
 		public bool renderDepth = false;
 		public float shadowStrength = 0.7f;
 
