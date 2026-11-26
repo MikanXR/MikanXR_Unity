@@ -5,11 +5,11 @@ using UnityEngine.Rendering;
 namespace MikanXR.Unity
 {
 	// The editor's captured lighting probe: an order-2 spherical harmonic radiance environment
-	// plus a key light direction, both in the capturing camera's stage space. The capture
-	// belongs to the camera it sits under and lights only that camera's renders: the camera
-	// brackets each render with BeginRender and EndRender, which make the probe the scene's
-	// ambient and turn the directional key light on, then put the host's ambient back and the
-	// key light off. The host's own views keep the host's lighting, a host that rewrites its
+	// plus a key light direction, both in the space of its scene's stage. The probe sits under
+	// its scene, one per scene, and the scene names it in light_environment_id. It lights only
+	// the renders of the camera that scene is shot through: the camera brackets each render
+	// with BeginRender and EndRender, which make the probe the scene's ambient and turn the
+	// directional key light on, then put the host's ambient back and the key light off. The host's own views keep the host's lighting, a host that rewrites its
 	// ambient every frame (Warudo) cannot undo it, and one key light at a time leaves the
 	// forward renderer's per-pixel light slots to the spot lights.
 	public class MikanLightEnvironmentObject : MikanTransformObject
@@ -60,7 +60,7 @@ namespace MikanXR.Unity
 			_probeDirty = true;
 		}
 
-		// Lights the scene for one render of the camera this capture belongs to. Answers false,
+		// Lights the scene for one render of the camera this probe's scene is shot through. Answers false,
 		// with nothing changed, while the client does not apply light environments.
 		public bool BeginRender()
 		{
