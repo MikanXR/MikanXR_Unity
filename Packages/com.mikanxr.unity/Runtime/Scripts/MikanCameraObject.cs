@@ -403,7 +403,7 @@ namespace MikanXR.Unity
 					renderStencils && stencil.IsFacingCamera(cameraPosition, cameraForward));
 			}
 
-			// The camera's own light capture lights this render alone, and the host gets its say
+			// The lighting probe of the scene shot through this camera lights this render alone, and the host gets its say
 			// for anything of its own to change around it. Both are undone even when a render
 			// throws, since the host's view would otherwise keep the change.
 			MikanLightEnvironmentObject lightEnvironment = FindLightEnvironment();
@@ -445,20 +445,38 @@ namespace MikanXR.Unity
 			Client.FramePublisher.QueuePublish(ComponentId, frameIndex);
 		}
 
-		// The light capture taken through this camera, which the editor parents to it. With more
-		// than one the lowest component id wins, and a camera without one renders under the host's
-		// own lighting rather than another camera's, which may be another room.
+		// The lighting probe of the scene shot through this camera. The editor parents a probe to
+		// its scene, one per scene, and the scene names both this camera and the probe. The
+		// current scene wins, then the lowest id among the other scenes that draw, and a camera
+		// no drawn scene is shot through renders under the host's own lighting rather than
+		// another scene's, which may be another room.
 		private MikanLightEnvironmentObject FindLightEnvironment()
 		{
-			MikanLightEnvironmentObject found = null;
-			foreach (MikanLightEnvironmentObject lightEnvironment in GetComponentsInChildren<MikanLightEnvironmentObject>())
+			int currentSceneId = Client.DataStore.CurrentSceneId;
+			MikanSceneObject found = null;
+			foreach (MikanSceneObject scene in Client.SceneMirror.FindAll<MikanSceneObject>())
 			{
-				if (found == null || lightEnvironment.ComponentId < found.ComponentId)
+				MikanSceneComponentValues values = scene.SceneValues;
+				if (values == null || values.camera_id != ComponentId || !scene.gameObject.activeInHierarchy)
 				{
-					found = lightEnvironment;
+					continue;
+				}
+
+				if (scene.ComponentId == currentSceneId)
+				{
+					found = scene;
+					break;
+				}
+
+				if (found == null || scene.ComponentId < found.ComponentId)
+				{
+					found = scene;
 				}
 			}
-			return found;
+
+			return found != null
+				? Client.SceneMirror.Find(found.SceneValues.light_environment_id) as MikanLightEnvironmentObject
+				: null;
 		}
 
 		private void RenderShadowPass()
